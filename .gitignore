@@ -1,0 +1,25 @@
+# Environment variables - never commit these
+.env
+.env.*
+
+# SQLite database
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+dist/
+
+# Misc
+.DS_Store
+*.log

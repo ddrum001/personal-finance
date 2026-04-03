@@ -1,0 +1,222 @@
+import { useState, useEffect, useCallback } from 'react'
+import PlaidLinkButton from './components/PlaidLink'
+import SpendingByCategory from './components/SpendingByCategory'
+import MonthlyTrend from './components/MonthlyTrend'
+import TransactionList from './components/TransactionList'
+import DateFilter, { getDateRange, getFilterLabel } from './components/DateFilter'
+import { getTransactions, listItems, syncTransactions, getCategories } from './api/client'
+import CategoriesTab from './components/CategoriesTab'
+import CashflowTab from './components/CashflowTab'
+import ImportCsvModal from './components/ImportCsvModal'
+import Login from './components/Login'
+
+const now = new Date()
+
+const DEFAULT_FILTER = {
+  mode: 'last90',
+  year: now.getFullYear(),
+  month: now.getMonth() + 1,
+  quarter: Math.ceil((now.getMonth() + 1) / 3),
+}
+
+export default function App() {
+  const [user, setUser] = useState(undefined) // undefined = loading, null = not authed
+  const [tab, setTab] = useState('dashboard')
+  const [transactions, setTransactions] = useState([])
+  const [items, setItems] = useState([])
+  const [categories, setCategories] = useState([])
+  const [syncing, setSyncing] = useState(false)
+  const [filter, setFilter] = useState(DEFAULT_FILTER)
+  const [importing, setImporting] = useState(false)
+  const [reviewMode, setReviewMode] = useState(false)
+  const [splitQueueMode, setSplitQueueMode] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setUser(data))
+      .catch(() => setUser(null))
+  }, [])
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    setUser(null)
+  }
+
+  const refreshUser = () =>
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(setUser)
+      .catch(() => setUser(null))
+
+  const { startDate, endDate } = getDateRange(filter)
+
+  const loadData = useCallback(async () => {
+    if (!user) return
+    const params = reviewMode
+      ? { needsReview: true }
+      : splitQueueMode
+      ? { needsSplits: true }
+      : { startDate, endDate }
+    const [txns, linkedItems] = await Promise.all([
+      getTransactions(params),
+      listItems(),
+    ])
+    setTransactions(txns)
+    setItems(linkedItems)
+  }, [user, startDate, endDate, reviewMode, splitQueueMode])
+
+  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (user) getCategories().then(setCategories).catch(console.error) }, [user])
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try { await syncTransactions() } catch {}
+    await loadData()
+    setSyncing(false)
+  }
+
+  if (user === undefined) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#888', fontSize: 14 }}>
+      Loading…
+    </div>
+  )
+  if (!user) return <Login onSuccess={refreshUser} />
+
+  return (
+    <div className="app-container">
+      {importing && (
+        <ImportCsvModal
+          onClose={() => setImporting(false)}
+          onImported={loadData}
+        />
+      )}
+      <header className="app-header">
+        <h1>Personal Finance</h1>
+        <div className="app-header-actions">
+          <span style={{ fontSize: 13, color: '#888' }}>{user.name || user.email}</span>
+          <button
+            onClick={handleLogout}
+            style={{ padding: '8px 16px', background: '#fff', color: '#888', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+          >
+            Sign out
+          </button>
+          <button
+            onClick={() => setImporting(true)}
+            style={{ padding: '8px 16px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+          >
+            Import CSV
+          </button>
+          {items.length > 0 && (
+            <button onClick={handleSync} disabled={syncing} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+              {syncing ? 'Syncing…' : 'Sync'}
+            </button>
+          )}
+          <PlaidLinkButton onSuccess={loadData} />
+        </div>
+      </header>
+
+      {items.length > 0 && (
+        <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>
+          Linked: {items.map((i) => {
+            const n = i.accounts?.length ?? 0
+            return `${i.institution_name || i.item_id}${n ? ` (${n} account${n !== 1 ? 's' : ''})` : ''}`
+          }).join(' · ')}
+        </p>
+      )}
+
+      <nav className="nav-tabs">
+        {['dashboard', 'transactions', 'cashflow', 'categories'].map((t) => (
+          <button
+            key={t}
+            className="nav-tab"
+            onClick={() => setTab(t)}
+            style={{
+              color: tab === t ? '#6366f1' : '#555',
+              borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
+            }}
+          >
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </nav>
+
+      {/* Date filter + review mode toggle */}
+      {tab !== 'categories' && tab !== 'cashflow' && (
+        <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {!reviewMode && !splitQueueMode && <DateFilter filter={filter} onChange={setFilter} />}
+          {!reviewMode && !splitQueueMode && <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>}
+          {tab === 'transactions' && (
+            <>
+              <button
+                onClick={() => { setReviewMode(r => !r); setSplitQueueMode(false) }}
+                style={{
+                  padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', border: '1px solid',
+                  background: reviewMode ? '#fef9c3' : '#fff',
+                  color: reviewMode ? '#854d0e' : '#555',
+                  borderColor: reviewMode ? '#fde047' : '#ddd',
+                }}
+              >
+                {reviewMode ? '⚠ Needs Review' : 'Needs Review'}
+              </button>
+              <button
+                onClick={() => { setSplitQueueMode(s => !s); setReviewMode(false) }}
+                style={{
+                  padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', border: '1px solid',
+                  background: splitQueueMode ? '#fdf4ff' : '#fff',
+                  color: splitQueueMode ? '#7e22ce' : '#555',
+                  borderColor: splitQueueMode ? '#d8b4fe' : '#ddd',
+                }}
+              >
+                {splitQueueMode ? '✂ Split Queue' : 'Split Queue'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'dashboard' && (
+        <div style={{ display: 'grid', gap: 24 }}>
+          <section className="card">
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Spending by Category</h2>
+            <SpendingByCategory startDate={startDate} endDate={endDate} />
+          </section>
+
+          <section className="card">
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Monthly Spending Trend</h2>
+            <MonthlyTrend startDate={startDate} endDate={endDate} />
+          </section>
+        </div>
+      )}
+
+      {tab === 'transactions' && (
+        <section className="card">
+          <TransactionList
+            transactions={transactions}
+            onUpdated={loadData}
+            categories={categories}
+            items={items}
+            reviewMode={reviewMode}
+            splitQueueMode={splitQueueMode}
+          />
+        </section>
+      )}
+
+      {tab === 'cashflow' && (
+        <section className="card">
+          <CashflowTab />
+        </section>
+      )}
+
+      {tab === 'categories' && (
+        <section className="card">
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Category Management</h2>
+          <CategoriesTab />
+        </section>
+      )}
+    </div>
+  )
+}
+

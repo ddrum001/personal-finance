@@ -1,0 +1,182 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; }
+
+/* ── Layout ── */
+.app-container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 12px;
+}
+.app-header h1 { font-size: 22px; font-weight: 700; white-space: nowrap; }
+.app-header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ── Nav tabs ── */
+.nav-tabs {
+  display: flex;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e8eaf6;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.nav-tabs::-webkit-scrollbar { display: none; }
+.nav-tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-bottom: -2px;
+}
+
+/* ── Card ── */
+.card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+/* ── Dashboard controls ── */
+.dashboard-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dashboard-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Transaction table (desktop) ── */
+.txn-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.txn-table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; min-width: 700px; }
+.txn-table th { padding: 8px 12px; text-align: left; font-weight: 600; }
+.txn-table td { padding: 8px 12px; }
+.txn-table th:nth-child(1), .txn-table td:nth-child(1) { width: 100px; white-space: nowrap; }
+.txn-table th:nth-child(2), .txn-table td:nth-child(2) { width: 28%; }
+.txn-table th:nth-child(3), .txn-table td:nth-child(3) { width: 100px; white-space: nowrap; }
+.txn-table th:nth-child(4), .txn-table td:nth-child(4) { }
+.txn-table th:nth-child(5), .txn-table td:nth-child(5) { width: 150px; }
+.txn-cards { display: none; }
+
+/* ── Transaction cards (mobile) ── */
+.txn-card {
+  border-bottom: 1px solid #eee;
+  padding: 12px 0;
+}
+.txn-card:last-child { border-bottom: none; }
+.txn-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.txn-card-merchant { font-weight: 600; font-size: 14px; flex: 1; }
+.txn-card-amount { font-weight: 700; font-size: 15px; white-space: nowrap; }
+.txn-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.txn-card-date { font-size: 12px; color: #888; }
+.txn-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.txn-split-badge { font-size: 11px; color: #f59e0b; font-weight: 700; margin-top: 2px; }
+
+/* Split sub-rows in card view */
+.txn-split-rows { margin-top: 6px; padding-left: 12px; border-left: 3px solid #fde68a; }
+.txn-split-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 4px 0;
+  gap: 8px;
+}
+.txn-split-info { flex: 1; font-size: 12px; color: #555; }
+.txn-split-amount { font-size: 13px; font-weight: 600; color: #ef4444; white-space: nowrap; }
+
+/* ── Category hierarchy breadcrumb ── */
+.cat-breadcrumb { font-size: 10px; color: #999; line-height: 1.4; }
+.cat-name-small { font-size: 11px; color: #666; }
+
+/* ── Modals ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-sm { max-width: 520px; }
+
+/* ── Categories toolbar ── */
+.cat-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cat-toolbar-left { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cat-toolbar-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ── Buttons: min touch target 44px on mobile ── */
+@media (max-width: 640px) {
+  .app-container { padding: 16px 12px; }
+
+  .app-header { flex-wrap: wrap; }
+  .app-header h1 { font-size: 19px; }
+  .app-header-actions { width: 100%; }
+  .app-header-actions button { flex: 1; min-height: 44px; font-size: 14px; }
+
+  .nav-tab { padding: 12px 16px; font-size: 13px; min-height: 44px; }
+
+  .card { padding: 16px 12px; border-radius: 8px; }
+
+  .dashboard-section-header { flex-direction: column; align-items: flex-start; }
+  .dashboard-controls { width: 100%; }
+  .dashboard-controls select { flex: 1; min-height: 40px; font-size: 14px; }
+
+  /* Switch transactions to card layout on mobile */
+  .txn-table-wrap { display: none; }
+  .txn-cards { display: block; }
+
+  /* Bigger tap targets for action buttons */
+  .txn-card-actions button { min-height: 36px; padding: 6px 14px !important; font-size: 13px !important; }
+
+  /* Modals go full-screen on mobile */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 92vh;
+    padding: 20px 16px;
+  }
+
+  /* Categories toolbar stacks */
+  .cat-toolbar { flex-direction: column; align-items: stretch; }
+  .cat-toolbar-left input { width: 100%; }
+  .cat-toolbar-right { justify-content: stretch; }
+  .cat-toolbar-right button { flex: 1; min-height: 44px; }
+
+  /* Category rows easier to tap */
+  .sub-cat-row { padding: 12px 12px 12px 16px !important; }
+}
