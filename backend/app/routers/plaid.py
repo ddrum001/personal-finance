@@ -151,6 +151,20 @@ def exchange_public_token(
     item_id = response["item_id"]
     access_token = response["access_token"]
 
+    # If a previous (non-manual) item exists for this institution with a
+    # different item_id, remove it so we don't accumulate duplicate accounts.
+    # Transactions are not FK-constrained on account_id, so they survive; the
+    # next sync re-merges them under the new account_id.
+    stale = db.query(PlaidItem).filter(
+        PlaidItem.institution_name == body.institution_name,
+        PlaidItem.access_token != "manual",
+        PlaidItem.item_id != item_id,
+    ).all()
+    for s in stale:
+        db.delete(s)
+    if stale:
+        db.flush()
+
     item = PlaidItem(
         item_id=item_id,
         access_token=access_token,
@@ -317,8 +331,19 @@ def sync_transactions(db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-# 4. List linked items
+# 4. List linked items / delete a stale item
 # ---------------------------------------------------------------------------
+
+@router.delete("/items/{item_id}")
+def delete_item(item_id: str, db: Session = Depends(get_db)):
+    """Remove a stale Plaid item and its accounts (e.g. after a duplicate reconnect)."""
+    item = db.get(PlaidItem, item_id)
+    if not item:
+        raise HTTPException(404, f"Item {item_id!r} not found")
+    db.delete(item)
+    db.commit()
+    return {"deleted": item_id}
+
 
 @router.get("/items")
 def list_items(db: Session = Depends(get_db)):
@@ -355,13 +380,30 @@ def _upsert_accounts(client: plaid_api.PlaidApi, access_token: str, item_id: str
     except plaid.ApiException:
         return  # non-fatal; we'll retry on next sync
     for acct in resp["accounts"]:
+        acct_subtype = str(acct["subtype"]) if acct.get("subtype") else None
+        acct_mask = acct.get("mask")
+
+        # Prefer to reuse an existing account row with the same identity
+        # (name + subtype + mask) so reconnecting the same bank doesn't
+        # create duplicate rows when Plaid issues a new account_id.
+        existing = db.query(Account).filter(
+            Account.item_id == item_id,
+            Account.name == acct["name"],
+            Account.subtype == acct_subtype,
+        ).first()
+        if existing:
+            existing.official_name = acct.get("official_name")
+            existing.mask = acct_mask
+            existing.type = str(acct["type"]) if acct.get("type") else None
+            continue
+
         db.merge(Account(
             account_id=acct["account_id"],
             item_id=item_id,
             name=acct["name"],
             official_name=acct.get("official_name"),
-            mask=acct.get("mask"),
+            mask=acct_mask,
             type=str(acct["type"]) if acct.get("type") else None,
-            subtype=str(acct["subtype"]) if acct.get("subtype") else None,
+            subtype=acct_subtype,
         ))
     db.commit()
