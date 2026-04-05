@@ -57,10 +57,20 @@ def _plaid_client() -> plaid_api.PlaidApi:
 @router.post("/link/token/create", response_model=LinkTokenResponse)
 def create_link_token():
     client = _plaid_client()
-    redirect_uri = os.getenv("PLAID_REDIRECT_URI")
+    redirect_uri = os.getenv("PLAID_REDIRECT_URI", "").strip() or None
+    env_name = os.getenv("PLAID_ENV", "sandbox").lower()
+
+    # OAuth institutions (e.g. Bank of America) require a registered redirect URI.
+    # In production, fail fast here rather than letting Plaid silently drop OAuth support.
+    if env_name == "production" and not redirect_uri:
+        raise HTTPException(
+            status_code=500,
+            detail="PLAID_REDIRECT_URI must be set in production to support OAuth institutions.",
+        )
+
     kwargs = dict(
         products=[Products("transactions")],
-        client_name="Personal Finance App",
+        client_name="Cormond",
         country_codes=[CountryCode("US")],
         language="en",
         user=LinkTokenCreateRequestUser(client_user_id="local-user"),
