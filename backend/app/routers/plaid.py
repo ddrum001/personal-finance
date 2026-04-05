@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 import datetime
 
 from ..database import get_db
-from ..models import PlaidItem, Transaction, Account
+from ..models import PlaidItem, Transaction, Account, TransactionSplit
 from ..schemas import (
     LinkTokenResponse,
     ExchangeTokenRequest,
@@ -199,6 +199,7 @@ def sync_transactions(db: Session = Depends(get_db)):
                 # institution so the higher-quality Plaid record wins.
                 # Match on date + amount; name can differ between CSV raw text
                 # and Plaid's cleaned merchant name.
+                saved_splits = []
                 if manual_ids:
                     csv_dup = db.query(Transaction).filter(
                         Transaction.item_id.in_(manual_ids),
@@ -212,9 +213,29 @@ def sync_transactions(db: Session = Depends(get_db)):
                         if csv_dup.custom_category and not db_txn.custom_category:
                             db_txn.custom_category = csv_dup.custom_category
                         db_txn.needs_review = csv_dup.needs_review
+                        # Save splits before cascade-deletes them
+                        saved_splits = [
+                            {
+                                "amount": s.amount,
+                                "category": s.category,
+                                "note": s.note,
+                                "budget_sub_category": s.budget_sub_category,
+                            }
+                            for s in csv_dup.splits
+                        ]
                         db.delete(csv_dup)
+                        db.flush()  # process deletion before re-creating splits
 
                 db.merge(db_txn)
+
+                if saved_splits:
+                    db.flush()  # ensure Plaid transaction exists before FK insert
+                    for split_data in saved_splits:
+                        db.add(TransactionSplit(
+                            transaction_id=db_txn.transaction_id,
+                            **split_data,
+                        ))
+
                 added += 1
 
             for txn in response["modified"]:
