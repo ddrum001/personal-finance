@@ -39,12 +39,15 @@ def _plaid_client() -> plaid_api.PlaidApi:
     if env_name not in env_map:
         raise HTTPException(400, f"Unknown PLAID_ENV: {env_name}")
 
+    client_id = os.getenv("PLAID_CLIENT_ID")
+    secret = os.getenv("PLAID_SECRET")
+    missing = [k for k, v in [("PLAID_CLIENT_ID", client_id), ("PLAID_SECRET", secret)] if not v]
+    if missing:
+        raise HTTPException(500, f"Missing required env vars: {', '.join(missing)}")
+
     configuration = plaid.Configuration(
         host=env_map[env_name],
-        api_key={
-            "clientId": os.getenv("PLAID_CLIENT_ID"),
-            "secret": os.getenv("PLAID_SECRET"),
-        },
+        api_key={"clientId": client_id, "secret": secret},
     )
     api_client = plaid.ApiClient(configuration)
     return plaid_api.PlaidApi(api_client)
