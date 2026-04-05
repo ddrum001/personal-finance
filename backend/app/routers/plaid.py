@@ -12,6 +12,7 @@ from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
 from dotenv import load_dotenv
 import datetime
+from datetime import timezone
 
 from ..database import get_db
 from ..models import PlaidItem, Transaction, Account, TransactionSplit
@@ -318,8 +319,9 @@ def sync_transactions(db: Session = Depends(get_db)):
             if not response.get("has_more"):
                 break
 
-        # Persist the cursor so the next sync only fetches new changes
+        # Persist the cursor and sync timestamp
         item.sync_cursor = cursor
+        item.last_synced_at = datetime.datetime.now(timezone.utc)
         # Refresh account metadata in case names/masks changed
         _upsert_accounts(client, item.access_token, item.item_id, db)
         db.commit()
@@ -355,6 +357,7 @@ def list_items(db: Session = Depends(get_db)):
             "item_id": i.item_id,
             "institution_name": i.institution_name,
             "created_at": i.created_at,
+            "last_synced_at": i.last_synced_at,
             "accounts": [
                 {
                     "account_id": a.account_id,
@@ -363,11 +366,23 @@ def list_items(db: Session = Depends(get_db)):
                     "mask": a.mask,
                     "type": a.type,
                     "subtype": a.subtype,
+                    "nickname": a.nickname,
                 }
                 for a in accounts
             ],
         })
     return result
+
+
+@router.patch("/accounts/{account_id}")
+def update_account(account_id: str, body: dict, db: Session = Depends(get_db)):
+    acct = db.get(Account, account_id)
+    if not acct:
+        raise HTTPException(404, f"Account {account_id!r} not found")
+    if "nickname" in body:
+        acct.nickname = body["nickname"] or None
+    db.commit()
+    return {"account_id": account_id, "nickname": acct.nickname}
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ class PlaidItem(Base):
     access_token = Column(String, nullable=False)
     institution_name = Column(String, nullable=True)
     sync_cursor = Column(String, nullable=True)  # persisted Plaid transactions/sync cursor
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -37,6 +38,7 @@ class Account(Base):
     mask = Column(String, nullable=True)       # last-4 digits
     type = Column(String, nullable=True)       # depository | credit | loan | investment
     subtype = Column(String, nullable=True)    # checking | savings | credit card | etc.
+    nickname = Column(String, nullable=True)   # user-defined display name
     balance = Column(Float, nullable=True)
     balance_updated_at = Column(DateTime(timezone=True), nullable=True)
 

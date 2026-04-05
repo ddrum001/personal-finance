@@ -25,6 +25,8 @@ _MIGRATIONS = [
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS needs_review BOOLEAN DEFAULT FALSE",
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS balance FLOAT",
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS balance_updated_at TIMESTAMP WITH TIME ZONE",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS nickname VARCHAR",
+    "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP WITH TIME ZONE",
 ]
 _SEEDS = [
     "UPDATE budget_categories SET hide_from_reports = TRUE WHERE macro_category = 'Financial Transactions'",

@@ -28,6 +28,22 @@ export async function listItems() {
   return res.json()
 }
 
+export async function updateAccountNickname(accountId, nickname) {
+  const res = await fetch(`${BASE}/plaid/accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deleteItem(itemId) {
+  const res = await fetch(`${BASE}/plaid/items/${itemId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function getTransactions({ startDate, endDate, category, accountId, needsReview, needsSplits } = {}) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)
