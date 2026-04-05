@@ -16,6 +16,7 @@ from datetime import timezone
 
 from ..database import get_db
 from ..models import PlaidItem, Transaction, Account, TransactionSplit
+from .categories import apply_keywords_to_transactions
 from ..schemas import (
     LinkTokenResponse,
     ExchangeTokenRequest,
@@ -213,6 +214,7 @@ def sync_transactions(db: Session = Depends(get_db)):
         # Resume from the last saved cursor; None means start from the beginning
         cursor = item.sync_cursor
         added = modified = removed = 0
+        new_ids: list[str] = []
 
         while True:
             kwargs = {"access_token": item.access_token}
@@ -299,6 +301,7 @@ def sync_transactions(db: Session = Depends(get_db)):
                             **split_data,
                         ))
 
+                new_ids.append(db_txn.transaction_id)
                 added += 1
 
             for txn in response["modified"]:
@@ -325,6 +328,9 @@ def sync_transactions(db: Session = Depends(get_db)):
         # Refresh account metadata in case names/masks changed
         _upsert_accounts(client, item.access_token, item.item_id, db)
         db.commit()
+        # Apply keyword rules to newly added transactions
+        if new_ids:
+            apply_keywords_to_transactions(db, transaction_ids=new_ids)
         total_added += added
         total_modified += modified
         total_removed += removed

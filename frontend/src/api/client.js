@@ -100,6 +100,12 @@ export async function flagForReview(transactionId) {
   return res.json()
 }
 
+export async function acceptSuggestions() {
+  const res = await fetch(`${BASE}/transactions/accept-suggestions`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function markReviewedBulk(transactionIds) {
   const res = await fetch(`${BASE}/transactions/mark-reviewed-bulk`, {
     method: 'POST',

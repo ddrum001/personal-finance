@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview } from '../api/client'
+import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions } from '../api/client'
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
@@ -37,6 +37,13 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     setMarkingAll(true)
     const ids = visible.filter(t => t.needs_review).map(t => t.transaction_id)
     if (ids.length) await markReviewedBulk(ids)
+    setMarkingAll(false)
+    onUpdated?.()
+  }
+
+  const handleAcceptAllSuggestions = async () => {
+    setMarkingAll(true)
+    await acceptSuggestions()
     setMarkingAll(false)
     onUpdated?.()
   }
@@ -161,29 +168,120 @@ export default function TransactionList({ transactions, onUpdated, categories, r
       )}
 
       {/* Review mode banner */}
-      {reviewMode && (
-        <div style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontSize: 13, color: '#854d0e', fontWeight: 600 }}>
-            ⚠ {visible.length} transaction{visible.length !== 1 ? 's' : ''} need review
-          </span>
-          {visible.length > 0 && (
-            <button
-              onClick={handleMarkAllReviewed}
-              disabled={markingAll}
-              style={{ padding: '5px 14px', background: '#854d0e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-            >
-              {markingAll ? 'Marking…' : `Mark all ${visible.length} reviewed`}
-            </button>
-          )}
-        </div>
-      )}
+      {reviewMode && (() => {
+        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
+        const uncategorized = visible.filter(t => t.needs_review && !t.budget_sub_category)
+        return (
+          <div style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: 13, color: '#854d0e', fontWeight: 600 }}>
+              ⚠ {visible.filter(t => t.needs_review).length} need review
+              {suggested.length > 0 && <span style={{ fontWeight: 400, marginLeft: 8 }}>· {suggested.length} suggested · {uncategorized.length} uncategorized</span>}
+            </span>
+            {suggested.length > 0 && (
+              <button
+                onClick={handleAcceptAllSuggestions}
+                disabled={markingAll}
+                style={{ padding: '5px 14px', background: '#15803d', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+              >
+                {markingAll ? 'Accepting…' : `Accept all ${suggested.length} remaining suggestions`}
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
         {visible.length} transaction{visible.length !== 1 ? 's' : ''}
         {(selectedInstitution || selectedAccount) ? ' (filtered)' : ''}
       </div>
 
-      {/* ── Desktop table view ── */}
+      {/* ── Group A: Suggested (review mode only) ── */}
+      {reviewMode && (() => {
+        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
+        if (suggested.length === 0) return null
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+              Suggested ({suggested.length})
+            </div>
+            <div style={{ border: '1px solid #bbf7d0', borderRadius: 8, overflow: 'hidden' }}>
+              {suggested.map((t, idx) => (
+                <div key={t.transaction_id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+                  borderTop: idx > 0 ? '1px solid #dcfce7' : undefined,
+                  background: editing === t.transaction_id ? '#f0fdf4' : '#fff',
+                  flexWrap: 'wrap',
+                }}>
+                  <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500, minWidth: 120 }}>{t.merchant_name || t.name}</span>
+                  <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
+                    {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
+                  </span>
+                  {editing === t.transaction_id ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <CategorySelect value={newBudgetSubCategory} onChange={setNewBudgetSubCategory} categories={categories || []} />
+                      <button onClick={() => handleSave(t.transaction_id)} style={btnStyle('#6366f1')}>Save</button>
+                      <button onClick={cancelEdit} style={btnStyle('#888')}>Cancel</button>
+                    </div>
+                  ) : (
+                    <>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {t.budget_sub_category}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={() => handleMarkReviewed(t)} style={btnStyle('#15803d')}>✓ Accept</button>
+                        <button onClick={() => startEdit(t)} style={btnStyleOutline('#6366f1')}>Change</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Group B: Needs Category (review mode only) ── */}
+      {reviewMode && (() => {
+        const uncategorized = visible.filter(t => t.needs_review && !t.budget_sub_category)
+        if (uncategorized.length === 0) return null
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+              Needs Category ({uncategorized.length})
+            </div>
+            <div style={{ border: '1px solid #fed7aa', borderRadius: 8, overflow: 'hidden' }}>
+              {uncategorized.map((t, idx) => (
+                <div key={t.transaction_id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
+                  borderTop: idx > 0 ? '1px solid #ffedd5' : undefined,
+                  background: '#fff',
+                  flexWrap: 'wrap',
+                }}>
+                  <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500, minWidth: 120 }}>{t.merchant_name || t.name}</span>
+                  <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
+                    {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
+                  </span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <CategorySelect
+                      value={editing === t.transaction_id ? newBudgetSubCategory : null}
+                      onChange={(val) => { setEditing(t.transaction_id); setNewBudgetSubCategory(val) }}
+                      categories={categories || []}
+                      placeholder="Pick a category…"
+                    />
+                    {editing === t.transaction_id && newBudgetSubCategory && (
+                      <button onClick={() => handleSave(t.transaction_id)} style={btnStyle('#6366f1')}>Save</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Desktop table view (non-review mode, or just-reviewed rows) ── */}
       <div className="txn-table-wrap">
         <table className="txn-table">
           <thead>
@@ -194,7 +292,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
             </tr>
           </thead>
           <tbody>
-            {visible.map((t) => {
+            {(reviewMode ? visible.filter(t => !t.needs_review) : visible).map((t) => {
               const hasSplits = t.splits?.length > 0
               return (
                 <>
@@ -202,7 +300,6 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                     <td style={{ verticalAlign: 'top' }}>{t.date}</td>
                     <td style={{ verticalAlign: 'top' }}>
                       <div style={{ fontWeight: hasSplits ? 600 : undefined }}>{t.merchant_name || t.name}</div>
-                      {t.needs_review && <div style={{ fontSize: 11, color: '#92400e', fontWeight: 600, marginTop: 2, background: '#fef9c3', display: 'inline-block', padding: '1px 6px', borderRadius: 4 }}>NEEDS REVIEW</div>}
                       {hasSplits && <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>SPLIT ({t.splits.length})</div>}
                       <AccountBadge t={t} />
                     </td>
@@ -227,9 +324,6 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                           </>
                         ) : (
                           <>
-                            {t.needs_review && (
-                              <button onClick={() => handleMarkReviewed(t)} style={btnStyle('#854d0e')}>✓ Reviewed</button>
-                            )}
                             {t._justReviewed && (
                               <button onClick={() => handleUndoReviewed(t.transaction_id)} style={btnStyle('#6b7280')} title="Undo — re-flag for review">↩ Undo</button>
                             )}
@@ -261,14 +355,13 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       {/* ── Mobile card view ── */}
       <div className="txn-cards">
-        {visible.map((t) => {
+        {(reviewMode ? visible.filter(t => !t.needs_review) : visible).map((t) => {
           const hasSplits = t.splits?.length > 0
           return (
             <div key={t.transaction_id} className="txn-card" style={{ background: t._justReviewed ? '#f0fdf4' : hasSplits ? '#fdfaf3' : undefined, opacity: t._justReviewed ? 0.7 : 1 }}>
               <div className="txn-card-top">
                 <div style={{ flex: 1 }}>
                   <div className="txn-card-merchant">{t.merchant_name || t.name}</div>
-                  {t.needs_review && <div style={{ fontSize: 11, color: '#92400e', fontWeight: 600, marginTop: 2, background: '#fef9c3', display: 'inline-block', padding: '1px 6px', borderRadius: 4 }}>NEEDS REVIEW</div>}
                   {hasSplits && <div className="txn-split-badge">SPLIT ({t.splits.length})</div>}
                 </div>
                 <span className="txn-card-amount" style={{ color: t.amount > 0 ? '#ef4444' : '#10b981' }}>
@@ -309,9 +402,6 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   </>
                 ) : (
                   <>
-                    {t.needs_review && (
-                      <button onClick={() => handleMarkReviewed(t)} style={btnStyle('#854d0e')}>✓ Reviewed</button>
-                    )}
                     {t._justReviewed && (
                       <button onClick={() => handleUndoReviewed(t.transaction_id)} style={btnStyle('#6b7280')} title="Undo — re-flag for review">↩ Undo</button>
                     )}
@@ -370,4 +460,8 @@ function SplitCategoryPill({ s }) {
 
 function btnStyle(bg) {
   return { padding: '4px 10px', background: bg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }
+}
+
+function btnStyleOutline(color) {
+  return { padding: '4px 10px', background: '#fff', color, border: `1px solid ${color}`, borderRadius: 4, cursor: 'pointer', fontSize: 12 }
 }

@@ -136,6 +136,17 @@ def mark_reviewed_bulk(body: dict, db: Session = Depends(get_db)):
     return {"updated": len(ids)}
 
 
+@router.post("/accept-suggestions")
+def accept_suggestions(db: Session = Depends(get_db)):
+    """Mark all keyword-suggested transactions (needs_review + has budget_sub_category) as reviewed."""
+    result = db.query(Transaction).filter(
+        Transaction.needs_review == True,
+        Transaction.budget_sub_category.isnot(None),
+    ).update({"needs_review": False}, synchronize_session=False)
+    db.commit()
+    return {"accepted": result}
+
+
 @router.patch("/{transaction_id}/category", response_model=TransactionOut)
 def update_category(
     transaction_id: str,
