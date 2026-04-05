@@ -67,12 +67,10 @@ export default function ImportCsvModal({ onClose, onImported }) {
     const accts = inst === 'Other' ? [] : (sourcesByInstitution[inst] ?? [])
     if (accts.length > 0) {
       setAccountName(accts[0].name)
-      setAccountMask(accts[0].mask)
       setAccountType(accts[0].type)
       setAccountSubtype(accts[0].subtype)
     } else {
       setAccountName('')
-      setAccountMask('')
       setAccountType('credit')
       setAccountSubtype('credit card')
     }
@@ -80,7 +78,6 @@ export default function ImportCsvModal({ onClose, onImported }) {
 
   const handlePreset = (preset) => {
     setAccountName(preset.name)
-    setAccountMask(preset.mask)
     setAccountType(preset.type)
     setAccountSubtype(preset.subtype)
   }
@@ -207,7 +204,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
                         fontWeight: accountName === p.name ? 600 : 400,
                       }}
                     >
-                      {p.name}{p.mask ? ` ••••${p.mask}` : ''}
+                      {p.name}
                     </button>
                   ))}
                 </div>
@@ -217,18 +214,6 @@ export default function ImportCsvModal({ onClose, onImported }) {
                 onChange={(e) => setAccountName(e.target.value)}
                 placeholder="Account name"
                 style={inputStyle}
-              />
-            </div>
-
-            {/* Last 4 digits */}
-            <div>
-              <label style={labelStyle}>Last 4 digits <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
-              <input
-                value={accountMask}
-                onChange={(e) => setAccountMask(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="e.g. 1234"
-                maxLength={4}
-                style={{ ...inputStyle, width: 80 }}
               />
             </div>
 
