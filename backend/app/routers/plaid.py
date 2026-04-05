@@ -147,9 +147,17 @@ def sync_transactions(db: Session = Depends(get_db)):
     client = _plaid_client()
     total_added = total_modified = total_removed = 0
 
+    # Build institution → manual item_ids map once, used for CSV dedup below
+    manual_ids_by_institution: dict[str, list[str]] = {}
+    for mi in db.query(PlaidItem).filter(PlaidItem.access_token == "manual").all():
+        manual_ids_by_institution.setdefault(mi.institution_name or "", []).append(mi.item_id)
+
     for item in items:
         if item.access_token == "manual":
             continue  # CSV-import synthetic items have no real Plaid token
+
+        # Manual item_ids for the same institution — used to find CSV duplicates
+        manual_ids = manual_ids_by_institution.get(item.institution_name or "", [])
 
         # Resume from the last saved cursor; None means start from the beginning
         cursor = item.sync_cursor
@@ -186,6 +194,26 @@ def sync_transactions(db: Session = Depends(get_db)):
                     pending=txn.get("pending", False),
                     needs_review=True,
                 )
+
+                # Remove any matching manual CSV transaction for the same
+                # institution so the higher-quality Plaid record wins.
+                # Match on date + amount; name can differ between CSV raw text
+                # and Plaid's cleaned merchant name.
+                if manual_ids:
+                    csv_dup = db.query(Transaction).filter(
+                        Transaction.item_id.in_(manual_ids),
+                        Transaction.date == db_txn.date,
+                        Transaction.amount == db_txn.amount,
+                    ).first()
+                    if csv_dup:
+                        # Carry over any categorisation the user already did
+                        if csv_dup.budget_sub_category and not db_txn.budget_sub_category:
+                            db_txn.budget_sub_category = csv_dup.budget_sub_category
+                        if csv_dup.custom_category and not db_txn.custom_category:
+                            db_txn.custom_category = csv_dup.custom_category
+                        db_txn.needs_review = csv_dup.needs_review
+                        db.delete(csv_dup)
+
                 db.merge(db_txn)
                 added += 1
 
