@@ -1,38 +1,16 @@
-import { useState, useRef } from 'react'
-import { importCsv } from '../api/client'
+import { useState, useRef, useEffect } from 'react'
+import { importCsv, listItems } from '../api/client'
 
-const INSTITUTIONS = ['Bank of America', 'Chase', 'Other']
-
-const ACCOUNT_PRESETS = {
-  'Bank of America': [
-    { name: 'Credit Card', type: 'credit', subtype: 'credit card' },
-    { name: 'Checking', type: 'depository', subtype: 'checking' },
-    { name: 'Savings', type: 'depository', subtype: 'savings' },
-  ],
-  Chase: [
-    { name: 'Disney Visa', type: 'credit', subtype: 'credit card' },
-    { name: 'Prime Visa', type: 'credit', subtype: 'credit card' },
-    { name: 'Sapphire Reserve', type: 'credit', subtype: 'credit card' },
-    { name: 'Sapphire Preferred', type: 'credit', subtype: 'credit card' },
-    { name: 'Freedom', type: 'credit', subtype: 'credit card' },
-    { name: 'Freedom Unlimited', type: 'credit', subtype: 'credit card' },
-    { name: 'Checking', type: 'depository', subtype: 'checking' },
-  ],
-  Other: [
-    { name: 'Credit Card', type: 'credit', subtype: 'credit card' },
-    { name: 'Checking', type: 'depository', subtype: 'checking' },
-  ],
-}
-
-const FORMAT_HINTS = {
-  Chase: 'Chase online → Account activity → Download → CSV',
-  'Bank of America': 'BofA online → Account activity → Download → CSV',
-  Other: 'Needs columns: date, description/payee, and amount',
+function formatHint(institutionName) {
+  const n = institutionName?.toLowerCase() ?? ''
+  if (n.includes('chase')) return 'Chase online → Account activity → Download → CSV'
+  if (n.includes('bank of america') || n.includes('bofa')) return 'BofA online → Account activity → Download → CSV'
+  return null
 }
 
 export default function ImportCsvModal({ onClose, onImported }) {
-  const [institution, setInstitution] = useState('Bank of America')
-  const [accountName, setAccountName] = useState(ACCOUNT_PRESETS['Bank of America'][0].name)
+  const [institution, setInstitution] = useState('')
+  const [accountName, setAccountName] = useState('')
   const [accountMask, setAccountMask] = useState('')
   const [accountType, setAccountType] = useState('credit')
   const [accountSubtype, setAccountSubtype] = useState('credit card')
@@ -40,18 +18,69 @@ export default function ImportCsvModal({ onClose, onImported }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [sourcesByInstitution, setSourcesByInstitution] = useState({})
   const fileRef = useRef()
+
+  // Load existing accounts grouped by institution
+  useEffect(() => {
+    listItems().then((items) => {
+      const map = {}
+      for (const item of items) {
+        const inst = item.institution_name || 'Unknown'
+        if (!map[inst]) map[inst] = []
+        for (const acct of item.accounts) {
+          map[inst].push({
+            name: acct.name,
+            mask: acct.mask || '',
+            type: acct.type || 'credit',
+            subtype: acct.subtype || 'credit card',
+          })
+        }
+      }
+      setSourcesByInstitution(map)
+
+      // Default to first institution/account
+      const institutions = Object.keys(map)
+      if (institutions.length > 0) {
+        const first = institutions[0]
+        setInstitution(first)
+        if (map[first].length > 0) {
+          const acct = map[first][0]
+          setAccountName(acct.name)
+          setAccountMask(acct.mask)
+          setAccountType(acct.type)
+          setAccountSubtype(acct.subtype)
+        }
+      } else {
+        setInstitution('Other')
+      }
+    }).catch(() => {
+      setInstitution('Other')
+    })
+  }, [])
+
+  const institutions = [...Object.keys(sourcesByInstitution), 'Other']
+  const presets = institution === 'Other' ? [] : (sourcesByInstitution[institution] ?? [])
 
   const handleInstitutionChange = (inst) => {
     setInstitution(inst)
-    const preset = ACCOUNT_PRESETS[inst][0]
-    setAccountName(preset.name)
-    setAccountType(preset.type)
-    setAccountSubtype(preset.subtype)
+    const accts = inst === 'Other' ? [] : (sourcesByInstitution[inst] ?? [])
+    if (accts.length > 0) {
+      setAccountName(accts[0].name)
+      setAccountMask(accts[0].mask)
+      setAccountType(accts[0].type)
+      setAccountSubtype(accts[0].subtype)
+    } else {
+      setAccountName('')
+      setAccountMask('')
+      setAccountType('credit')
+      setAccountSubtype('credit card')
+    }
   }
 
   const handlePreset = (preset) => {
     setAccountName(preset.name)
+    setAccountMask(preset.mask)
     setAccountType(preset.type)
     setAccountSubtype(preset.subtype)
   }
@@ -81,7 +110,6 @@ export default function ImportCsvModal({ onClose, onImported }) {
     } catch (err) {
       try {
         const body = JSON.parse(err.message)
-        // FastAPI wraps detail under body.detail; normalise to {message, detected_headers}
         const detail = body.detail ?? body
         setError(typeof detail === 'string' ? { message: detail } : detail)
       } catch {
@@ -92,7 +120,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
     }
   }
 
-  const presets = ACCOUNT_PRESETS[institution] || []
+  const hint = institution !== 'Other' ? formatHint(institution) : null
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -144,8 +172,8 @@ export default function ImportCsvModal({ onClose, onImported }) {
             {/* Institution */}
             <div>
               <label style={labelStyle}>Institution</label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {INSTITUTIONS.map((inst) => (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {institutions.map((inst) => (
                   <button
                     key={inst}
                     onClick={() => handleInstitutionChange(inst)}
@@ -165,34 +193,36 @@ export default function ImportCsvModal({ onClose, onImported }) {
             {/* Account name presets */}
             <div>
               <label style={labelStyle}>Account</label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                {presets.map((p) => (
-                  <button
-                    key={p.name}
-                    onClick={() => handlePreset(p)}
-                    style={{
-                      padding: '4px 10px', border: '1px solid #e5e7eb', borderRadius: 20,
-                      cursor: 'pointer', fontSize: 12,
-                      background: accountName === p.name ? '#e8eaf6' : '#f9fafb',
-                      color: accountName === p.name ? '#4338ca' : '#555',
-                      fontWeight: accountName === p.name ? 600 : 400,
-                    }}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
+              {presets.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {presets.map((p) => (
+                    <button
+                      key={p.name}
+                      onClick={() => handlePreset(p)}
+                      style={{
+                        padding: '4px 10px', border: '1px solid #e5e7eb', borderRadius: 20,
+                        cursor: 'pointer', fontSize: 12,
+                        background: accountName === p.name ? '#e8eaf6' : '#f9fafb',
+                        color: accountName === p.name ? '#4338ca' : '#555',
+                        fontWeight: accountName === p.name ? 600 : 400,
+                      }}
+                    >
+                      {p.name}{p.mask ? ` ••••${p.mask}` : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
               <input
                 value={accountName}
                 onChange={(e) => setAccountName(e.target.value)}
-                placeholder="Account name (e.g. Sapphire Reserve)"
+                placeholder="Account name"
                 style={inputStyle}
               />
             </div>
 
             {/* Last 4 digits */}
             <div>
-              <label style={labelStyle}>Last 4 digits <span style={{ color: '#aaa', fontWeight: 400 }}>(optional, helps distinguish cards)</span></label>
+              <label style={labelStyle}>Last 4 digits <span style={{ color: '#aaa', fontWeight: 400 }}>(optional)</span></label>
               <input
                 value={accountMask}
                 onChange={(e) => setAccountMask(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -216,9 +246,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
                 {file ? `✓  ${file.name}` : 'Click to choose a .csv file'}
               </div>
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={handleFileChange} style={{ display: 'none' }} />
-              {institution !== 'Other' && (
-                <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>{FORMAT_HINTS[institution]}</div>
-              )}
+              {hint && <div style={{ fontSize: 12, color: '#888', marginTop: 6 }}>{hint}</div>}
             </div>
 
             {/* Error */}
