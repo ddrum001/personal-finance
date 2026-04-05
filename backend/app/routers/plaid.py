@@ -84,6 +84,8 @@ def create_link_token():
         raise HTTPException(status_code=502, detail=str(e.body))
     except plaid.OpenApiException as e:
         raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"{type(e).__name__}: {e}")
 
     return LinkTokenResponse(
         link_token=response["link_token"],
