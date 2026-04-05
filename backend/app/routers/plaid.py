@@ -148,6 +148,9 @@ def sync_transactions(db: Session = Depends(get_db)):
     total_added = total_modified = total_removed = 0
 
     for item in items:
+        if item.access_token == "manual":
+            continue  # CSV-import synthetic items have no real Plaid token
+
         # Resume from the last saved cursor; None means start from the beginning
         cursor = item.sync_cursor
         added = modified = removed = 0
