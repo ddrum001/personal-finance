@@ -13,11 +13,15 @@ all existing filtering, categorisation, and reporting works unchanged.
 import csv
 import hashlib
 import io
+import logging
+import traceback
 from datetime import date as date_type
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from ..database import get_db
 from ..models import Account, PlaidItem, Transaction
@@ -219,15 +223,20 @@ async def import_csv(
         )
 
     fmt = FORMATS[fmt_key]
-    item = get_or_create_item(institution_name, db)
-    account = get_or_create_account(
-        item.item_id,
-        account_name,
-        account_mask.strip() or None,
-        account_type,
-        account_subtype,
-        db,
-    )
+    try:
+        item = get_or_create_item(institution_name, db)
+        account = get_or_create_account(
+            item.item_id,
+            account_name,
+            account_mask.strip() or None,
+            account_type,
+            account_subtype,
+            db,
+        )
+    except Exception as exc:
+        db.rollback()
+        logger.error("import_csv: account setup failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(status_code=422, detail={"message": f"Account setup failed: {exc}"})
 
     added = skipped = errors = 0
     new_ids: list[str] = []
@@ -316,7 +325,12 @@ async def import_csv(
         new_ids.append(txn_id)
         added += 1
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("import_csv: commit failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(status_code=422, detail={"message": f"Database error saving transactions: {exc}"})
 
     # Persist running balance from BofA checking if it's newer than what's stored
     if latest_bal is not None and latest_bal_date is not None:

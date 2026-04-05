@@ -32,6 +32,17 @@ TABLES = [
     "cashflow_entries",
 ]
 
+# SQLite stores booleans as integers; cast them for Postgres
+BOOL_COLUMNS = {
+    "budget_categories": {"is_discretionary", "is_recurring", "hide_from_reports"},
+    "transactions": {"pending", "needs_review"},
+    "cashflow_entries": {"is_recurring"},
+}
+
+def cast_row(table, row):
+    bool_cols = BOOL_COLUMNS.get(table, set())
+    return {k: bool(v) if k in bool_cols and v is not None else v for k, v in row.items()}
+
 with sqlite.connect() as src, pg.connect() as dst:
     for table in TABLES:
         try:
@@ -50,7 +61,7 @@ with sqlite.connect() as src, pg.connect() as dst:
         insert = text(
             f"INSERT INTO {table} ({col_list}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
         )
-        dst.execute(insert, [dict(r) for r in rows])
+        dst.execute(insert, [cast_row(table, dict(r)) for r in rows])
         dst.commit()
         print(f"  {table}: {len(rows)} rows migrated")
 

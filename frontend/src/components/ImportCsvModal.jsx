@@ -10,6 +10,7 @@ const ACCOUNT_PRESETS = {
     { name: 'Savings', type: 'depository', subtype: 'savings' },
   ],
   Chase: [
+    { name: 'Disney Visa', type: 'credit', subtype: 'credit card' },
     { name: 'Prime Visa', type: 'credit', subtype: 'credit card' },
     { name: 'Sapphire Reserve', type: 'credit', subtype: 'credit card' },
     { name: 'Sapphire Preferred', type: 'credit', subtype: 'credit card' },
@@ -80,7 +81,9 @@ export default function ImportCsvModal({ onClose, onImported }) {
     } catch (err) {
       try {
         const body = JSON.parse(err.message)
-        setError(body)
+        // FastAPI wraps detail under body.detail; normalise to {message, detected_headers}
+        const detail = body.detail ?? body
+        setError(typeof detail === 'string' ? { message: detail } : detail)
       } catch {
         setError({ message: err.message })
       }
