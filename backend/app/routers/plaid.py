@@ -26,6 +26,40 @@ load_dotenv()
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
 
+# Words too generic to use for account name matching
+_GENERIC_WORDS = {"visa", "mastercard", "amex", "discover", "credit", "debit",
+                  "card", "checking", "savings", "account", "bank"}
+
+
+def _match_manual_account(plaid_acct: Account, manual_accounts: list) -> Account | None:
+    """Return the manual account that best corresponds to a Plaid account.
+
+    Strategy:
+      1. Exact last-4 mask match (most reliable)
+      2. Significant keyword match — words from the manual name that appear
+         in the Plaid name/official_name (filters out generic card words)
+    Returns None if no confident match found.
+    """
+    # 1. Mask match (only when both sides have a mask)
+    if plaid_acct.mask:
+        for ma in manual_accounts:
+            if ma.mask and ma.mask == plaid_acct.mask and ma.subtype == plaid_acct.subtype:
+                return ma
+
+    # 2. Keyword match
+    plaid_combined = (
+        (plaid_acct.name or "") + " " + (plaid_acct.official_name or "")
+    ).lower()
+    for ma in manual_accounts:
+        keywords = [
+            w for w in (ma.name or "").lower().split()
+            if len(w) >= 4 and w not in _GENERIC_WORDS
+        ]
+        if keywords and all(kw in plaid_combined for kw in keywords):
+            return ma
+
+    return None
+
 # ---------------------------------------------------------------------------
 # Plaid client factory (reads env at request time so .env reload works)
 # ---------------------------------------------------------------------------
@@ -147,17 +181,19 @@ def sync_transactions(db: Session = Depends(get_db)):
     client = _plaid_client()
     total_added = total_modified = total_removed = 0
 
-    # Build institution → manual item_ids map once, used for CSV dedup below
-    manual_ids_by_institution: dict[str, list[str]] = {}
+    # Build institution → manual Account objects map once, used for CSV dedup below
+    manual_accts_by_institution: dict[str, list[Account]] = {}
     for mi in db.query(PlaidItem).filter(PlaidItem.access_token == "manual").all():
-        manual_ids_by_institution.setdefault(mi.institution_name or "", []).append(mi.item_id)
+        accts = db.query(Account).filter(Account.item_id == mi.item_id).all()
+        if accts:
+            manual_accts_by_institution.setdefault(mi.institution_name or "", []).extend(accts)
 
     for item in items:
         if item.access_token == "manual":
             continue  # CSV-import synthetic items have no real Plaid token
 
-        # Manual item_ids for the same institution — used to find CSV duplicates
-        manual_ids = manual_ids_by_institution.get(item.institution_name or "", [])
+        # Manual accounts for the same institution — used to find CSV duplicates
+        manual_accts = manual_accts_by_institution.get(item.institution_name or "", [])
 
         # Resume from the last saved cursor; None means start from the beginning
         cursor = item.sync_cursor
@@ -196,16 +232,28 @@ def sync_transactions(db: Session = Depends(get_db)):
                 )
 
                 # Remove any matching manual CSV transaction for the same
-                # institution so the higher-quality Plaid record wins.
+                # account so the higher-quality Plaid record wins.
                 # Match on date + amount; name can differ between CSV raw text
                 # and Plaid's cleaned merchant name.
                 saved_splits = []
-                if manual_ids:
-                    csv_dup = db.query(Transaction).filter(
-                        Transaction.item_id.in_(manual_ids),
-                        Transaction.date == db_txn.date,
-                        Transaction.amount == db_txn.amount,
-                    ).first()
+                if manual_accts:
+                    # Try to narrow dedup to the specific matched manual account
+                    plaid_acct = db.get(Account, txn["account_id"])
+                    matched_manual = _match_manual_account(plaid_acct, manual_accts) if plaid_acct else None
+                    if matched_manual:
+                        csv_dup = db.query(Transaction).filter(
+                            Transaction.account_id == matched_manual.account_id,
+                            Transaction.date == db_txn.date,
+                            Transaction.amount == db_txn.amount,
+                        ).first()
+                    else:
+                        # Fall back to institution-level dedup
+                        manual_acct_ids = [a.account_id for a in manual_accts]
+                        csv_dup = db.query(Transaction).filter(
+                            Transaction.account_id.in_(manual_acct_ids),
+                            Transaction.date == db_txn.date,
+                            Transaction.amount == db_txn.amount,
+                        ).first()
                     if csv_dup:
                         # Carry over any categorisation the user already did
                         if csv_dup.budget_sub_category and not db_txn.budget_sub_category:
