@@ -82,6 +82,8 @@ def create_link_token():
         response = client.link_token_create(request)
     except plaid.ApiException as e:
         raise HTTPException(status_code=502, detail=str(e.body))
+    except plaid.OpenApiException as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
     return LinkTokenResponse(
         link_token=response["link_token"],
@@ -104,6 +106,8 @@ def exchange_public_token(
         response = client.item_public_token_exchange(request)
     except plaid.ApiException as e:
         raise HTTPException(status_code=502, detail=str(e.body))
+    except plaid.OpenApiException as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
     item_id = response["item_id"]
     access_token = response["access_token"]
@@ -152,6 +156,8 @@ def sync_transactions(db: Session = Depends(get_db)):
                 response = client.transactions_sync(request)
             except plaid.ApiException as e:
                 raise HTTPException(status_code=502, detail=str(e.body))
+            except plaid.OpenApiException as e:
+                raise HTTPException(status_code=502, detail=str(e))
 
             for txn in response["added"]:
                 category_str = None
