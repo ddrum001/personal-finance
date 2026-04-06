@@ -96,7 +96,7 @@ def list_transactions(
             "budget_macro_category": bc.macro_category if bc else None,
             "is_discretionary": bc.is_discretionary if bc else None,
             "is_recurring": bc.is_recurring if bc else None,
-            "account_name": acct.name if acct else None,
+            "account_name": (acct.nickname or acct.name) if acct else None,
             "account_mask": acct.mask if acct else None,
             "account_type": acct.type if acct else None,
             "account_subtype": acct.subtype if acct else None,
