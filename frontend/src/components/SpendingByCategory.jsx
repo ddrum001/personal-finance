@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts'
-import { getCategoryBreakdown } from '../api/client'
+import { getCategoryBreakdown, getTransactions } from '../api/client'
 
 const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16','#a78bfa','#34d399','#fbbf24','#60a5fa','#f472b6']
 
@@ -28,6 +28,8 @@ export default function SpendingByCategory({ startDate, endDate }) {
   const [drillPath, setDrillPath] = useState([])
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
+  const [drillTxns, setDrillTxns] = useState([])
+  const [drillTxnsLoading, setDrillTxnsLoading] = useState(false)
 
   // Derive fetch params from drillPath + baseLevel
   const { groupBy, filterMacro, filterCategory, canDrill } = useMemo(() => {
@@ -57,17 +59,36 @@ export default function SpendingByCategory({ startDate, endDate }) {
   }, [startDate, endDate, groupBy, filterMacro, filterCategory])
 
   // Reset drill when base level or date range changes
-  useEffect(() => { setDrillPath([]) }, [baseLevel, startDate, endDate])
+  useEffect(() => { setDrillPath([]); setSelectedCategory(null) }, [baseLevel, startDate, endDate])
+
+  // Fetch recent transactions for selected category
+  useEffect(() => {
+    if (!selectedCategory) { setDrillTxns([]); return }
+    setDrillTxnsLoading(true)
+    getTransactions({ startDate, endDate, budgetSubCategory: selectedCategory, limit: 10 })
+      .then(setDrillTxns)
+      .catch(console.error)
+      .finally(() => setDrillTxnsLoading(false))
+  }, [selectedCategory, startDate, endDate])
+
+  const [selectedCategory, setSelectedCategory] = useState(null)
 
   const handleBarClick = (entry) => {
-    if (!canDrill || !entry) return
-    const type = groupBy === 'macro_category' ? 'macro' : 'category'
-    setDrillPath(prev => [...prev, { type, value: entry.category }])
+    if (!entry) return
+    if (canDrill) {
+      const type = groupBy === 'macro_category' ? 'macro' : 'category'
+      setDrillPath(prev => [...prev, { type, value: entry.category }])
+      setSelectedCategory(null)
+    } else {
+      // deepest level — toggle transaction list
+      setSelectedCategory(prev => prev === entry.category ? null : entry.category)
+    }
   }
 
   const handleBaseLevel = (level) => {
     setBaseLevel(level)
     setDrillPath([])
+    setSelectedCategory(null)
   }
 
   const chartHeight = Math.max(280, data.length * 38 + 60)
@@ -92,9 +113,18 @@ export default function SpendingByCategory({ startDate, endDate }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         <Controls baseLevel={baseLevel} onBaseLevel={handleBaseLevel} />
-        {canDrill && (
-          <span style={{ fontSize: 12, color: '#888' }}>Click a bar to drill down</span>
-        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {drillPath.length > 0 && (
+            <button
+              onClick={() => { setDrillPath(prev => prev.slice(0, -1)); setSelectedCategory(null) }}
+              style={{ padding: '5px 12px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#555' }}
+            >
+              ← Back
+            </button>
+          )}
+          {canDrill && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to drill down</span>}
+          {!canDrill && !selectedCategory && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to see recent transactions</span>}
+        </div>
       </div>
 
       {/* Breadcrumb */}
@@ -140,11 +170,11 @@ export default function SpendingByCategory({ startDate, endDate }) {
             <Bar
               dataKey="total"
               radius={[0, 4, 4, 0]}
-              cursor={canDrill ? 'pointer' : 'default'}
+              cursor="pointer"
               onClick={(d) => handleBarClick(d)}
             >
-              {data.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              {data.map((entry, i) => (
+                <Cell key={i} fill={selectedCategory === entry.category ? '#4f46e5' : COLORS[i % COLORS.length]} />
               ))}
               <LabelList
                 dataKey="total"
@@ -155,6 +185,44 @@ export default function SpendingByCategory({ startDate, endDate }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      )}
+
+      {/* Recent transactions for selected category */}
+      {selectedCategory && (
+        <div style={{ marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Recent: {selectedCategory}</span>
+            <button onClick={() => setSelectedCategory(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+          {drillTxnsLoading ? (
+            <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+          ) : drillTxns.length === 0 ? (
+            <p style={{ color: '#aaa', fontSize: 13 }}>No transactions found.</p>
+          ) : (
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ color: '#888', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>
+                  <th style={{ textAlign: 'left', paddingBottom: 6 }}>Date</th>
+                  <th style={{ textAlign: 'left', paddingBottom: 6 }}>Merchant</th>
+                  <th style={{ textAlign: 'left', paddingBottom: 6 }}>Account</th>
+                  <th style={{ textAlign: 'right', paddingBottom: 6 }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drillTxns.map(t => (
+                  <tr key={t.transaction_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '6px 0', color: '#888', whiteSpace: 'nowrap' }}>{t.date}</td>
+                    <td style={{ padding: '6px 8px' }}>{t.merchant_name || t.name}</td>
+                    <td style={{ padding: '6px 8px', color: '#9ca3af', fontSize: 12 }}>{t.account_name || t.institution_name || '—'}</td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
+                      {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
     </div>
   )

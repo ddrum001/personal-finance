@@ -17,6 +17,7 @@ def list_transactions(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     category: Optional[str] = Query(None),
+    budget_sub_category: Optional[str] = Query(None),
     account_id: Optional[str] = Query(None),
     needs_review: Optional[bool] = Query(None),
     needs_splits: Optional[bool] = Query(None),
@@ -34,6 +35,8 @@ def list_transactions(
             (Transaction.custom_category == category)
             | (Transaction.category == category)
         )
+    if budget_sub_category:
+        q = q.filter(Transaction.budget_sub_category == budget_sub_category)
     if account_id:
         q = q.filter(Transaction.account_id == account_id)
     excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
