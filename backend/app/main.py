@@ -34,7 +34,8 @@ _SEEDS = [
     "UPDATE budget_categories SET hide_from_reports = TRUE WHERE macro_category = 'Financial Transactions'",
     "UPDATE transactions SET needs_review = TRUE WHERE budget_sub_category IS NULL",
     # Backfill institution_name from plaid_items for existing transactions
-    "UPDATE transactions SET institution_name = plaid_items.institution_name FROM plaid_items WHERE transactions.item_id = plaid_items.item_id AND transactions.institution_name IS NULL",
+    # Using correlated subquery (works on both PostgreSQL and SQLite)
+    "UPDATE transactions SET institution_name = (SELECT institution_name FROM plaid_items WHERE plaid_items.item_id = transactions.item_id) WHERE institution_name IS NULL",
 ]
 with engine.connect() as _conn:
     for _sql in _MIGRATIONS:
