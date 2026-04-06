@@ -13,8 +13,13 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   // Map of id → transaction snapshot for transactions reviewed this session
   // Keeps them visible in review mode so the undo button can be clicked
   const [reviewedThisSession, setReviewedThisSession] = useState(new Map())
-  // IDs optimistically hidden from Group A while API call + re-fetch is in flight
-  const [pendingHidden, setPendingHidden] = useState(new Set())
+  // Local field overrides applied on top of the prop — avoids re-fetch for Accept/Defer
+  const [txnOverrides, setTxnOverrides] = useState({})
+
+  const applyOverride = (id, fields) =>
+    setTxnOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...fields } }))
+  const clearOverride = (id) =>
+    setTxnOverrides(prev => { const n = { ...prev }; delete n[id]; return n })
 
   const handleSave = async (id) => {
     if (newBudgetSubCategory) await updateBudgetCategory(id, newBudgetSubCategory)
@@ -23,24 +28,23 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     onUpdated?.()
   }
 
-  const handleMarkReviewed = async (txn) => {
-    setPendingHidden(prev => new Set(prev).add(txn.transaction_id))
-    await markReviewed(txn.transaction_id)
-    setReviewedThisSession((prev) => new Map(prev).set(txn.transaction_id, txn))
-    setPendingHidden(prev => { const s = new Set(prev); s.delete(txn.transaction_id); return s })
-    onUpdated?.()
+  const handleMarkReviewed = (txn) => {
+    // Optimistic: immediately mark reviewed in local state — no re-fetch
+    applyOverride(txn.transaction_id, { needs_review: false, _justReviewed: true })
+    setReviewedThisSession(prev => new Map(prev).set(txn.transaction_id, txn))
+    markReviewed(txn.transaction_id)
   }
 
-  const handleRejectSuggestion = async (txn) => {
-    setPendingHidden(prev => new Set(prev).add(txn.transaction_id))
-    await rejectSuggestion(txn.transaction_id)
-    setPendingHidden(prev => { const s = new Set(prev); s.delete(txn.transaction_id); return s })
-    onUpdated?.()
+  const handleRejectSuggestion = (txn) => {
+    // Optimistic: clear suggestion, move to Group B — no re-fetch
+    applyOverride(txn.transaction_id, { budget_sub_category: null, budget_category: null, budget_macro_category: null })
+    rejectSuggestion(txn.transaction_id)
   }
 
   const handleUndoReviewed = async (id) => {
     await flagForReview(id)
-    setReviewedThisSession((prev) => { const m = new Map(prev); m.delete(id); return m })
+    clearOverride(id)
+    setReviewedThisSession(prev => { const m = new Map(prev); m.delete(id); return m })
     onUpdated?.()
   }
 
@@ -85,6 +89,12 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
   const currentIds = useMemo(() => new Set(transactions.map((t) => t.transaction_id)), [transactions])
 
+  // Merge local overrides on top of server data
+  const withOverrides = useMemo(() =>
+    transactions.map(t => txnOverrides[t.transaction_id] ? { ...t, ...txnOverrides[t.transaction_id] } : t),
+    [transactions, txnOverrides]
+  )
+
   // In review mode, keep recently-reviewed rows visible (with undo button) even after parent re-fetch removes them
   const recentlyReviewedRows = useMemo(() => {
     if (!reviewMode) return []
@@ -94,7 +104,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   }, [reviewMode, reviewedThisSession, currentIds])
 
   const visible = [
-    ...transactions.filter((t) => {
+    ...withOverrides.filter((t) => {
       if (selectedAccount) return t.account_id === selectedAccount
       if (selectedInstitution) return t.institution_name === selectedInstitution
       return true
@@ -180,7 +190,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       {/* Review mode banner */}
       {reviewMode && (() => {
-        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category && !pendingHidden.has(t.transaction_id))
+        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
         const uncategorized = visible.filter(t => t.needs_review && !t.budget_sub_category)
         return (
           <div style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
@@ -208,7 +218,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       {/* ── Group A: Suggested (review mode only) ── */}
       {reviewMode && (() => {
-        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category && !pendingHidden.has(t.transaction_id))
+        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
         if (suggested.length === 0) return null
         return (
           <div style={{ marginBottom: 24 }}>
