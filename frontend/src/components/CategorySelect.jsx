@@ -50,7 +50,7 @@ export default function CategorySelect({ value, onChange, categories }) {
 
       {selected && !open && (
         <div style={{ fontSize: 11, color: '#888', marginTop: 3, paddingLeft: 2 }}>
-          {selected.macro_category} \u203a {selected.category}
+          {selected.macro_category} › {selected.category}
         </div>
       )}
 
