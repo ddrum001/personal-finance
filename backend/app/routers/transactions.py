@@ -298,11 +298,13 @@ def summary_by_category(
                 return None
         return fallback_cat or "Uncategorized"
 
+    excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
     date_filter = [
         Transaction.date >= start_date,
         Transaction.date <= end_date,
         Transaction.pending == False,
         Transaction.amount > 0,
+        Transaction.account_id.notin_(excluded_ids) if excluded_ids else True,
     ]
 
     split_txn_ids = {
@@ -363,6 +365,7 @@ def monthly_trend(
     db: Session = Depends(get_db),
 ):
     """Total spending per month. When start_date/end_date are given they take priority over `months`."""
+    excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
     q = (
         db.query(
             extract("year", Transaction.date).label("year"),
@@ -371,6 +374,8 @@ def monthly_trend(
         )
         .filter(Transaction.pending == False, Transaction.amount > 0)
     )
+    if excluded_ids:
+        q = q.filter(Transaction.account_id.notin_(excluded_ids))
     if start_date and end_date:
         q = q.filter(Transaction.date >= start_date, Transaction.date <= end_date)
     q = q.group_by("year", "month").order_by("year", "month")
