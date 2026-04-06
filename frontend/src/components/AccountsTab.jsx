@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { updateAccountNickname, deleteItem } from '../api/client'
+import { updateAccountNickname, deleteItem, syncItem } from '../api/client'
 
 function formatSyncTime(ts) {
   if (!ts) return 'Never'
@@ -29,6 +29,8 @@ export default function AccountsTab({ items, onRefresh }) {
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // item_id to confirm
+  const [syncingItem, setSyncingItem] = useState(null) // item_id being synced
+  const [syncResults, setSyncResults] = useState({}) // item_id → result string
 
   const startEdit = (acct) => {
     setEditing(acct.account_id)
@@ -52,6 +54,24 @@ export default function AccountsTab({ items, onRefresh }) {
     await deleteItem(itemId)
     await onRefresh()
     setConfirmDelete(null)
+  }
+
+  const handleSyncItem = async (itemId) => {
+    setSyncingItem(itemId)
+    setSyncResults(prev => ({ ...prev, [itemId]: null }))
+    try {
+      const res = await syncItem(itemId)
+      const parts = []
+      if (res.added) parts.push(`+${res.added} added`)
+      if (res.modified) parts.push(`${res.modified} updated`)
+      if (res.removed) parts.push(`${res.removed} removed`)
+      setSyncResults(prev => ({ ...prev, [itemId]: parts.length ? parts.join(' · ') : 'Up to date' }))
+      await onRefresh()
+    } catch (e) {
+      setSyncResults(prev => ({ ...prev, [itemId]: `Error: ${e.message}` }))
+    } finally {
+      setSyncingItem(null)
+    }
   }
 
   // Show Plaid items first, manual last
@@ -83,11 +103,25 @@ export default function AccountsTab({ items, onRefresh }) {
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 {!isManual && (
-                  <span style={{ fontSize: 12, color: '#888' }}>
-                    Last sync: <strong>{formatSyncTime(item.last_synced_at)}</strong>
-                  </span>
+                  <>
+                    <span style={{ fontSize: 12, color: '#888' }}>
+                      Last sync: <strong>{formatSyncTime(item.last_synced_at)}</strong>
+                    </span>
+                    {syncResults[item.item_id] && (
+                      <span style={{ fontSize: 11, color: syncResults[item.item_id].startsWith('Error') ? '#ef4444' : '#15803d' }}>
+                        {syncResults[item.item_id]}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleSyncItem(item.item_id)}
+                      disabled={syncingItem === item.item_id}
+                      style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '2px 8px', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      {syncingItem === item.item_id ? 'Syncing…' : 'Sync'}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => setConfirmDelete(item.item_id)}

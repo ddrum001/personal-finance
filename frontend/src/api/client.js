@@ -22,6 +22,12 @@ export async function syncTransactions() {
   return res.json()
 }
 
+export async function syncItem(itemId) {
+  const res = await fetch(`${BASE}/plaid/items/${itemId}/sync`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function listItems() {
   const res = await fetch(`${BASE}/plaid/items`)
   if (!res.ok) throw new Error(await res.text())

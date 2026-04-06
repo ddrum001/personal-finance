@@ -174,154 +174,158 @@ def exchange_public_token(
 # 3. Sync Transactions  (poll this to pull new/updated/removed transactions)
 # ---------------------------------------------------------------------------
 
+def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_institution: dict, db: Session) -> tuple[int, int, int]:
+    """Sync a single Plaid item. Returns (added, modified, removed)."""
+    manual_accts = manual_accts_by_institution.get(item.institution_name or "", [])
+    cursor = item.sync_cursor
+    added = modified = removed = 0
+    new_ids: list[str] = []
+
+    while True:
+        kwargs = {"access_token": item.access_token}
+        if cursor:
+            kwargs["cursor"] = cursor
+        request = TransactionsSyncRequest(**kwargs)
+        try:
+            response = client.transactions_sync(request)
+        except plaid.ApiException as e:
+            raise HTTPException(status_code=502, detail=str(e.body))
+        except plaid.OpenApiException as e:
+            raise HTTPException(status_code=502, detail=str(e))
+
+        for txn in response["added"]:
+            category_str = None
+            if txn.get("personal_finance_category"):
+                category_str = txn["personal_finance_category"].get("primary")
+            elif txn.get("category"):
+                category_str = txn["category"][0] if txn["category"] else None
+
+            db_txn = Transaction(
+                transaction_id=txn["transaction_id"],
+                account_id=txn["account_id"],
+                item_id=item.item_id,
+                name=txn["name"],
+                amount=txn["amount"],
+                date=txn["date"],
+                category=category_str,
+                merchant_name=txn.get("merchant_name"),
+                pending=txn.get("pending", False),
+                needs_review=True,
+            )
+
+            saved_splits = []
+            if manual_accts:
+                plaid_acct = db.get(Account, txn["account_id"])
+                matched_manual = _match_manual_account(plaid_acct, manual_accts) if plaid_acct else None
+                if matched_manual:
+                    csv_dup = db.query(Transaction).filter(
+                        Transaction.account_id == matched_manual.account_id,
+                        Transaction.date == db_txn.date,
+                        Transaction.amount == db_txn.amount,
+                    ).first()
+                else:
+                    manual_acct_ids = [a.account_id for a in manual_accts]
+                    csv_dup = db.query(Transaction).filter(
+                        Transaction.account_id.in_(manual_acct_ids),
+                        Transaction.date == db_txn.date,
+                        Transaction.amount == db_txn.amount,
+                    ).first()
+                if csv_dup:
+                    if csv_dup.budget_sub_category and not db_txn.budget_sub_category:
+                        db_txn.budget_sub_category = csv_dup.budget_sub_category
+                    if csv_dup.custom_category and not db_txn.custom_category:
+                        db_txn.custom_category = csv_dup.custom_category
+                    db_txn.needs_review = csv_dup.needs_review
+                    saved_splits = [
+                        {"amount": s.amount, "category": s.category,
+                         "note": s.note, "budget_sub_category": s.budget_sub_category}
+                        for s in csv_dup.splits
+                    ]
+                    db.delete(csv_dup)
+                    db.flush()
+
+            db.merge(db_txn)
+
+            if saved_splits:
+                db.flush()
+                for split_data in saved_splits:
+                    db.add(TransactionSplit(transaction_id=db_txn.transaction_id, **split_data))
+
+            new_ids.append(db_txn.transaction_id)
+            added += 1
+
+        for txn in response["modified"]:
+            existing = db.get(Transaction, txn["transaction_id"])
+            if existing:
+                existing.name = txn["name"]
+                existing.amount = txn["amount"]
+                existing.pending = txn.get("pending", False)
+                modified += 1
+
+        for txn in response["removed"]:
+            existing = db.get(Transaction, txn["transaction_id"])
+            if existing:
+                db.delete(existing)
+                removed += 1
+
+        cursor = response.get("next_cursor")
+        if not response.get("has_more"):
+            break
+
+    item.sync_cursor = cursor
+    item.last_synced_at = datetime.datetime.now(timezone.utc)
+    _upsert_accounts(client, item.access_token, item.item_id, db)
+    db.commit()
+    if new_ids:
+        apply_keywords_to_transactions(db, transaction_ids=new_ids)
+
+    return added, modified, removed
+
+
+def _build_manual_accts_map(db: Session) -> dict[str, list[Account]]:
+    result: dict[str, list[Account]] = {}
+    for mi in db.query(PlaidItem).filter(PlaidItem.access_token == "manual").all():
+        accts = db.query(Account).filter(Account.item_id == mi.item_id).all()
+        if accts:
+            result.setdefault(mi.institution_name or "", []).extend(accts)
+    return result
+
+
 @router.post("/transactions/sync", response_model=SyncResponse)
 def sync_transactions(db: Session = Depends(get_db)):
+    """Sync all linked Plaid items."""
     items = db.query(PlaidItem).all()
     if not items:
         raise HTTPException(404, "No linked accounts. Complete the Link flow first.")
 
     client = _plaid_client()
+    manual_map = _build_manual_accts_map(db)
     total_added = total_modified = total_removed = 0
-
-    # Build institution → manual Account objects map once, used for CSV dedup below
-    manual_accts_by_institution: dict[str, list[Account]] = {}
-    for mi in db.query(PlaidItem).filter(PlaidItem.access_token == "manual").all():
-        accts = db.query(Account).filter(Account.item_id == mi.item_id).all()
-        if accts:
-            manual_accts_by_institution.setdefault(mi.institution_name or "", []).extend(accts)
 
     for item in items:
         if item.access_token == "manual":
-            continue  # CSV-import synthetic items have no real Plaid token
-
-        # Manual accounts for the same institution — used to find CSV duplicates
-        manual_accts = manual_accts_by_institution.get(item.institution_name or "", [])
-
-        # Resume from the last saved cursor; None means start from the beginning
-        cursor = item.sync_cursor
-        added = modified = removed = 0
-        new_ids: list[str] = []
-
-        while True:
-            kwargs = {"access_token": item.access_token}
-            if cursor:
-                kwargs["cursor"] = cursor
-            request = TransactionsSyncRequest(**kwargs)
-            try:
-                response = client.transactions_sync(request)
-            except plaid.ApiException as e:
-                raise HTTPException(status_code=502, detail=str(e.body))
-            except plaid.OpenApiException as e:
-                raise HTTPException(status_code=502, detail=str(e))
-
-            for txn in response["added"]:
-                category_str = None
-                if txn.get("personal_finance_category"):
-                    category_str = txn["personal_finance_category"].get("primary")
-                elif txn.get("category"):
-                    category_str = txn["category"][0] if txn["category"] else None
-
-                db_txn = Transaction(
-                    transaction_id=txn["transaction_id"],
-                    account_id=txn["account_id"],
-                    item_id=item.item_id,
-                    name=txn["name"],
-                    amount=txn["amount"],
-                    date=txn["date"],
-                    category=category_str,
-                    merchant_name=txn.get("merchant_name"),
-                    pending=txn.get("pending", False),
-                    needs_review=True,
-                )
-
-                # Remove any matching manual CSV transaction for the same
-                # account so the higher-quality Plaid record wins.
-                # Match on date + amount; name can differ between CSV raw text
-                # and Plaid's cleaned merchant name.
-                saved_splits = []
-                if manual_accts:
-                    # Try to narrow dedup to the specific matched manual account
-                    plaid_acct = db.get(Account, txn["account_id"])
-                    matched_manual = _match_manual_account(plaid_acct, manual_accts) if plaid_acct else None
-                    if matched_manual:
-                        csv_dup = db.query(Transaction).filter(
-                            Transaction.account_id == matched_manual.account_id,
-                            Transaction.date == db_txn.date,
-                            Transaction.amount == db_txn.amount,
-                        ).first()
-                    else:
-                        # Fall back to institution-level dedup
-                        manual_acct_ids = [a.account_id for a in manual_accts]
-                        csv_dup = db.query(Transaction).filter(
-                            Transaction.account_id.in_(manual_acct_ids),
-                            Transaction.date == db_txn.date,
-                            Transaction.amount == db_txn.amount,
-                        ).first()
-                    if csv_dup:
-                        # Carry over any categorisation the user already did
-                        if csv_dup.budget_sub_category and not db_txn.budget_sub_category:
-                            db_txn.budget_sub_category = csv_dup.budget_sub_category
-                        if csv_dup.custom_category and not db_txn.custom_category:
-                            db_txn.custom_category = csv_dup.custom_category
-                        db_txn.needs_review = csv_dup.needs_review
-                        # Save splits before cascade-deletes them
-                        saved_splits = [
-                            {
-                                "amount": s.amount,
-                                "category": s.category,
-                                "note": s.note,
-                                "budget_sub_category": s.budget_sub_category,
-                            }
-                            for s in csv_dup.splits
-                        ]
-                        db.delete(csv_dup)
-                        db.flush()  # process deletion before re-creating splits
-
-                db.merge(db_txn)
-
-                if saved_splits:
-                    db.flush()  # ensure Plaid transaction exists before FK insert
-                    for split_data in saved_splits:
-                        db.add(TransactionSplit(
-                            transaction_id=db_txn.transaction_id,
-                            **split_data,
-                        ))
-
-                new_ids.append(db_txn.transaction_id)
-                added += 1
-
-            for txn in response["modified"]:
-                existing = db.get(Transaction, txn["transaction_id"])
-                if existing:
-                    existing.name = txn["name"]
-                    existing.amount = txn["amount"]
-                    existing.pending = txn.get("pending", False)
-                    modified += 1
-
-            for txn in response["removed"]:
-                existing = db.get(Transaction, txn["transaction_id"])
-                if existing:
-                    db.delete(existing)
-                    removed += 1
-
-            cursor = response.get("next_cursor")
-            if not response.get("has_more"):
-                break
-
-        # Persist the cursor and sync timestamp
-        item.sync_cursor = cursor
-        item.last_synced_at = datetime.datetime.now(timezone.utc)
-        # Refresh account metadata in case names/masks changed
-        _upsert_accounts(client, item.access_token, item.item_id, db)
-        db.commit()
-        # Apply keyword rules to newly added transactions
-        if new_ids:
-            apply_keywords_to_transactions(db, transaction_ids=new_ids)
-        total_added += added
-        total_modified += modified
-        total_removed += removed
+            continue
+        a, m, r = _sync_item(item, client, manual_map, db)
+        total_added += a
+        total_modified += m
+        total_removed += r
 
     return SyncResponse(added=total_added, modified=total_modified, removed=total_removed)
+
+
+@router.post("/items/{item_id}/sync", response_model=SyncResponse)
+def sync_item(item_id: str, db: Session = Depends(get_db)):
+    """Sync a single Plaid item."""
+    item = db.get(PlaidItem, item_id)
+    if not item:
+        raise HTTPException(404, f"Item {item_id!r} not found")
+    if item.access_token == "manual":
+        raise HTTPException(400, "Cannot sync a manual CSV import item")
+
+    client = _plaid_client()
+    manual_map = _build_manual_accts_map(db)
+    added, modified, removed = _sync_item(item, client, manual_map, db)
+    return SyncResponse(added=added, modified=modified, removed=removed)
 
 
 # ---------------------------------------------------------------------------

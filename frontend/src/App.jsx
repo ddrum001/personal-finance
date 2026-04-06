@@ -110,7 +110,7 @@ export default function App() {
           </button>
           {items.length > 0 && (
             <button onClick={handleSync} disabled={syncing} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-              {syncing ? 'Syncing…' : 'Sync'}
+              {syncing ? 'Syncing…' : 'Sync All'}
             </button>
           )}
           <PlaidLinkButton onSuccess={loadData} />
