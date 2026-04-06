@@ -61,12 +61,19 @@ export default function SpendingByCategory({ startDate, endDate }) {
 
   // Reset drill when base level or date range changes
   useEffect(() => { setDrillPath([]); setSelectedCategory(null) }, [baseLevel, startDate, endDate])
+  // Clear selected category when drill path changes (navigating up)
+  useEffect(() => { setSelectedCategory(null) }, [drillPath])
 
   // Fetch recent transactions for selected category
+  // selectedCategory is { label, budgetSubCategory } at sub_category level, or string at others
   useEffect(() => {
     if (!selectedCategory) { setDrillTxns([]); return }
     setDrillTxnsLoading(true)
-    getTransactions({ startDate, endDate, budgetSubCategory: selectedCategory, limit: 10 })
+    const params = { startDate, endDate, limit: 10 }
+    if (selectedCategory.budgetSubCategory) {
+      params.budgetSubCategory = selectedCategory.budgetSubCategory
+    }
+    getTransactions(params)
       .then(setDrillTxns)
       .catch(console.error)
       .finally(() => setDrillTxnsLoading(false))
@@ -74,13 +81,13 @@ export default function SpendingByCategory({ startDate, endDate }) {
 
   const handleBarClick = (entry) => {
     if (!entry) return
+    // Always show transactions for clicked bar
+    const cat = { label: entry.category, budgetSubCategory: groupBy === 'sub_category' ? entry.category : null }
+    setSelectedCategory(prev => prev?.label === entry.category ? null : cat)
+    // Also drill down if possible
     if (canDrill) {
       const type = groupBy === 'macro_category' ? 'macro' : 'category'
       setDrillPath(prev => [...prev, { type, value: entry.category }])
-      setSelectedCategory(null)
-    } else {
-      // deepest level — toggle transaction list
-      setSelectedCategory(prev => prev === entry.category ? null : entry.category)
     }
   }
 
@@ -102,7 +109,17 @@ export default function SpendingByCategory({ startDate, endDate }) {
   if (!data.length && !loading) {
     return (
       <div>
-        <Controls baseLevel={baseLevel} onBaseLevel={handleBaseLevel} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <Controls baseLevel={baseLevel} onBaseLevel={handleBaseLevel} />
+          {drillPath.length > 0 && (
+            <button
+              onClick={() => { setDrillPath(prev => prev.slice(0, -1)); setSelectedCategory(null) }}
+              style={{ padding: '5px 12px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#555' }}
+            >
+              ← Back
+            </button>
+          )}
+        </div>
         <p style={{ color: '#888', marginTop: 16 }}>No spending data for this period.</p>
       </div>
     )
@@ -173,7 +190,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
               onClick={(d) => handleBarClick(d)}
             >
               {data.map((entry, i) => (
-                <Cell key={i} fill={selectedCategory === entry.category ? '#4f46e5' : COLORS[i % COLORS.length]} />
+                <Cell key={i} fill={selectedCategory?.label === entry.category ? '#4f46e5' : COLORS[i % COLORS.length]} />
               ))}
               <LabelList
                 dataKey="total"
@@ -190,7 +207,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
       {selectedCategory && (
         <div style={{ marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Recent: {selectedCategory}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>Recent: {selectedCategory?.label}</span>
             <button onClick={() => setSelectedCategory(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
           </div>
           {drillTxnsLoading ? (
