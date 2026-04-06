@@ -55,7 +55,7 @@ export default function App() {
   const loadData = useCallback(async () => {
     if (!user) return
     const params = reviewMode
-      ? { needsReview: true }
+      ? { needsReview: true, limit: 2000 }
       : splitQueueMode
       ? { needsSplits: true }
       : { startDate, endDate }
