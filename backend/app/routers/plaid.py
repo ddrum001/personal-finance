@@ -153,19 +153,29 @@ def exchange_public_token(
     item_id = response["item_id"]
     access_token = response["access_token"]
 
-    # If a previous (non-manual) item exists for this institution with a
-    # different item_id, remove it so we don't accumulate duplicate accounts.
-    # Transactions are not FK-constrained on account_id, so they survive; the
-    # next sync re-merges them under the new account_id.
-    stale = db.query(PlaidItem).filter(
+    # Fetch the new item's account IDs so we can detect re-links vs new logins.
+    try:
+        new_accts_resp = client.accounts_get(AccountsGetRequest(access_token=access_token))
+        new_account_ids = {a["account_id"] for a in new_accts_resp["accounts"]}
+    except Exception:
+        new_account_ids = set()
+
+    # Remove a previous item ONLY if it shares account IDs with this new link
+    # (same login re-authenticated). Different logins at the same institution
+    # (e.g. spouse's account) have non-overlapping account IDs and must coexist.
+    existing_items = db.query(PlaidItem).filter(
         PlaidItem.institution_name == body.institution_name,
         PlaidItem.access_token != "manual",
         PlaidItem.item_id != item_id,
     ).all()
-    for s in stale:
-        db.delete(s)
-    if stale:
-        db.flush()
+    for existing in existing_items:
+        existing_acct_ids = {
+            a.account_id for a in
+            db.query(Account).filter(Account.item_id == existing.item_id).all()
+        }
+        if existing_acct_ids & new_account_ids:  # overlap = same login re-linked
+            db.delete(existing)
+    db.flush()
 
     item = PlaidItem(
         item_id=item_id,
