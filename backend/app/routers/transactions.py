@@ -116,6 +116,17 @@ def mark_reviewed(transaction_id: str, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@router.patch("/{transaction_id}/reject-suggestion")
+def reject_suggestion(transaction_id: str, db: Session = Depends(get_db)):
+    """Clear a keyword suggestion (budget_sub_category) while keeping needs_review=True."""
+    t = db.get(Transaction, transaction_id)
+    if not t:
+        raise HTTPException(404, "Transaction not found")
+    t.budget_sub_category = None
+    db.commit()
+    return {"ok": True}
+
+
 @router.patch("/{transaction_id}/flag-review")
 def flag_for_review(transaction_id: str, db: Session = Depends(get_db)):
     t = db.get(Transaction, transaction_id)

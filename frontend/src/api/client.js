@@ -116,6 +116,12 @@ export async function flagForReview(transactionId) {
   return res.json()
 }
 
+export async function rejectSuggestion(transactionId) {
+  const res = await fetch(`${BASE}/transactions/${transactionId}/reject-suggestion`, { method: 'PATCH' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function acceptSuggestions() {
   const res = await fetch(`${BASE}/transactions/accept-suggestions`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())

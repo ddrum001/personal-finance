@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions } from '../api/client'
+import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion } from '../api/client'
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
@@ -13,6 +13,8 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   // Map of id → transaction snapshot for transactions reviewed this session
   // Keeps them visible in review mode so the undo button can be clicked
   const [reviewedThisSession, setReviewedThisSession] = useState(new Map())
+  // IDs optimistically hidden from Group A while API call + re-fetch is in flight
+  const [pendingHidden, setPendingHidden] = useState(new Set())
 
   const handleSave = async (id) => {
     if (newBudgetSubCategory) await updateBudgetCategory(id, newBudgetSubCategory)
@@ -22,8 +24,17 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   }
 
   const handleMarkReviewed = async (txn) => {
+    setPendingHidden(prev => new Set(prev).add(txn.transaction_id))
     await markReviewed(txn.transaction_id)
     setReviewedThisSession((prev) => new Map(prev).set(txn.transaction_id, txn))
+    setPendingHidden(prev => { const s = new Set(prev); s.delete(txn.transaction_id); return s })
+    onUpdated?.()
+  }
+
+  const handleRejectSuggestion = async (txn) => {
+    setPendingHidden(prev => new Set(prev).add(txn.transaction_id))
+    await rejectSuggestion(txn.transaction_id)
+    setPendingHidden(prev => { const s = new Set(prev); s.delete(txn.transaction_id); return s })
     onUpdated?.()
   }
 
@@ -169,7 +180,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       {/* Review mode banner */}
       {reviewMode && (() => {
-        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
+        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category && !pendingHidden.has(t.transaction_id))
         const uncategorized = visible.filter(t => t.needs_review && !t.budget_sub_category)
         return (
           <div style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
@@ -197,7 +208,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       {/* ── Group A: Suggested (review mode only) ── */}
       {reviewMode && (() => {
-        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
+        const suggested = visible.filter(t => t.needs_review && t.budget_sub_category && !pendingHidden.has(t.transaction_id))
         if (suggested.length === 0) return null
         return (
           <div style={{ marginBottom: 24 }}>
@@ -231,6 +242,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button onClick={() => handleMarkReviewed(t)} style={btnStyle('#15803d')}>✓ Accept</button>
                         <button onClick={() => startEdit(t)} style={btnStyleOutline('#6366f1')}>Change</button>
+                        <button onClick={() => handleRejectSuggestion(t)} style={btnStyleOutline('#dc2626')} title="Wrong category — move to Needs Category">✗ Defer</button>
                       </div>
                     </>
                   )}
