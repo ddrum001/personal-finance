@@ -10,6 +10,7 @@ import CashflowTab from './components/CashflowTab'
 import ImportCsvModal from './components/ImportCsvModal'
 import AccountsTab from './components/AccountsTab'
 import Login from './components/Login'
+import HelpModal from './components/HelpModal'
 
 const now = new Date()
 
@@ -29,6 +30,7 @@ export default function App() {
   const [syncing, setSyncing] = useState(false)
   const [filter, setFilter] = useState(DEFAULT_FILTER)
   const [importing, setImporting] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
   const [splitQueueMode, setSplitQueueMode] = useState(false)
 
@@ -92,9 +94,15 @@ export default function App() {
           onImported={loadData}
         />
       )}
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
       <header className="app-header">
         <h1>Personal Finance</h1>
         <div className="app-header-actions">
+          <button
+            onClick={() => setHelpOpen(true)}
+            style={{ padding: '8px 12px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
+            title="Help"
+          >?</button>
           <span style={{ fontSize: 13, color: '#888' }}>{user.name || user.email}</span>
           <button
             onClick={handleLogout}
