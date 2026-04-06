@@ -236,6 +236,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
                   <div style={{ flex: 1, minWidth: 120 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                    {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
                     <AccountBadge t={t} />
                   </div>
                   <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
@@ -286,6 +287,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
                   <div style={{ flex: 1, minWidth: 120 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                    {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
                     <AccountBadge t={t} />
                   </div>
                   <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
@@ -328,6 +330,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                     <td style={{ verticalAlign: 'top' }}>{t.date}</td>
                     <td style={{ verticalAlign: 'top' }}>
                       <div style={{ fontWeight: hasSplits ? 600 : undefined }}>{t.merchant_name || t.name}</div>
+                      {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
                       {hasSplits && <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>SPLIT ({t.splits.length})</div>}
                       <AccountBadge t={t} />
                     </td>
@@ -390,6 +393,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
               <div className="txn-card-top">
                 <div style={{ flex: 1 }}>
                   <div className="txn-card-merchant">{t.merchant_name || t.name}</div>
+                  {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
                   {hasSplits && <div className="txn-split-badge">SPLIT ({t.splits.length})</div>}
                 </div>
                 <span className="txn-card-amount" style={{ color: t.amount > 0 ? '#ef4444' : '#10b981' }}>
