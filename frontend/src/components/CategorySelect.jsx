@@ -46,10 +46,6 @@ export default function CategorySelect({ value, onChange, categories }) {
           placeholder="Search categories..."
           style={{ border: 'none', outline: 'none', flex: 1, fontSize: 13, background: 'transparent' }}
         />
-        {value && (
-          <button onClick={() => { onChange(null); setQuery('') }}
-            style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}>\u2715</button>
-        )}
       </div>
 
       {selected && !open && (
