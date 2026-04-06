@@ -44,6 +44,16 @@ export async function updateAccountNickname(accountId, nickname) {
   return res.json()
 }
 
+export async function setAccountExcluded(accountId, isExcluded) {
+  const res = await fetch(`${BASE}/plaid/accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_excluded: isExcluded }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function deleteItem(itemId) {
   const res = await fetch(`${BASE}/plaid/items/${itemId}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(await res.text())

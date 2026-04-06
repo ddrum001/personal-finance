@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { updateAccountNickname, deleteItem, syncItem } from '../api/client'
+import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded } from '../api/client'
 
 function formatSyncTime(ts) {
   if (!ts) return 'Never'
@@ -137,6 +137,8 @@ export default function AccountsTab({ items, onRefresh }) {
               <div key={acct.account_id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
+                opacity: acct.is_excluded ? 0.5 : 1,
+                background: acct.is_excluded ? '#f9fafb' : undefined,
               }}>
                 <div style={{ flex: 1 }}>
                   {editing === acct.account_id ? (
@@ -177,16 +179,35 @@ export default function AccountsTab({ items, onRefresh }) {
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {acct.is_excluded && (
+                    <span style={{ fontSize: 11, color: '#888', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 4, padding: '1px 6px' }}>
+                      excluded
+                    </span>
+                  )}
                   <span style={{ fontSize: 11, color: '#bbb', textTransform: 'capitalize' }}>
                     {acct.subtype || acct.type}
                   </span>
                   {editing !== acct.account_id && (
-                    <button
-                      onClick={() => startEdit(acct)}
-                      style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
-                    >
-                      Rename
-                    </button>
+                    <>
+                      <button
+                        onClick={() => startEdit(acct)}
+                        style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
+                      >
+                        Rename
+                      </button>
+                      {!isManual && (
+                        <button
+                          onClick={async () => { await setAccountExcluded(acct.account_id, !acct.is_excluded); await onRefresh() }}
+                          title={acct.is_excluded ? 'Re-include in sync' : 'Exclude from sync (joint account)'}
+                          style={{ fontSize: 11, background: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer',
+                            color: acct.is_excluded ? '#888' : '#f59e0b',
+                            border: acct.is_excluded ? '1px solid #e5e7eb' : '1px solid #fde68a',
+                          }}
+                        >
+                          {acct.is_excluded ? 'Re-include' : 'Exclude'}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

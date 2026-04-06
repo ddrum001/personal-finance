@@ -181,6 +181,12 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
     added = modified = removed = 0
     new_ids: list[str] = []
 
+    # Build set of excluded account_ids for this item so we skip joint accounts
+    excluded_account_ids = {
+        a.account_id for a in
+        db.query(Account).filter(Account.item_id == item.item_id, Account.is_excluded == True).all()
+    }
+
     while True:
         kwargs = {"access_token": item.access_token}
         if cursor:
@@ -194,6 +200,8 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
             raise HTTPException(status_code=502, detail=str(e))
 
         for txn in response["added"]:
+            if txn["account_id"] in excluded_account_ids:
+                continue
             category_str = None
             if txn.get("personal_finance_category"):
                 category_str = txn["personal_finance_category"].get("primary")
@@ -255,6 +263,8 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
             added += 1
 
         for txn in response["modified"]:
+            if txn["account_id"] in excluded_account_ids:
+                continue
             existing = db.get(Transaction, txn["transaction_id"])
             if existing:
                 existing.name = txn["name"]
@@ -364,6 +374,7 @@ def list_items(db: Session = Depends(get_db)):
                     "type": a.type,
                     "subtype": a.subtype,
                     "nickname": a.nickname,
+                    "is_excluded": a.is_excluded,
                 }
                 for a in accounts
             ],
@@ -378,8 +389,10 @@ def update_account(account_id: str, body: dict, db: Session = Depends(get_db)):
         raise HTTPException(404, f"Account {account_id!r} not found")
     if "nickname" in body:
         acct.nickname = body["nickname"] or None
+    if "is_excluded" in body:
+        acct.is_excluded = bool(body["is_excluded"])
     db.commit()
-    return {"account_id": account_id, "nickname": acct.nickname}
+    return {"account_id": account_id, "nickname": acct.nickname, "is_excluded": acct.is_excluded}
 
 
 # ---------------------------------------------------------------------------
@@ -391,13 +404,17 @@ def _upsert_accounts(client: plaid_api.PlaidApi, access_token: str, item_id: str
         resp = client.accounts_get(AccountsGetRequest(access_token=access_token))
     except plaid.ApiException:
         return  # non-fatal; we'll retry on next sync
+
+    # Fetch institution name for this item (needed for cross-item joint account detection)
+    this_item = db.get(PlaidItem, item_id)
+    institution_name = this_item.institution_name if this_item else None
+
     for acct in resp["accounts"]:
         acct_subtype = str(acct["subtype"]) if acct.get("subtype") else None
         acct_mask = acct.get("mask")
 
         # Prefer to reuse an existing account row with the same identity
-        # (name + subtype + mask) so reconnecting the same bank doesn't
-        # create duplicate rows when Plaid issues a new account_id.
+        # (name + subtype) within this item so reconnects don't create duplicates.
         existing = db.query(Account).filter(
             Account.item_id == item_id,
             Account.name == acct["name"],
@@ -409,6 +426,27 @@ def _upsert_accounts(client: plaid_api.PlaidApi, access_token: str, item_id: str
             existing.type = str(acct["type"]) if acct.get("type") else None
             continue
 
+        # Auto-detect joint accounts: if the same mask+subtype already exists
+        # under a different non-manual item at the same institution, mark this
+        # account as excluded so we don't sync it twice.
+        is_excluded = False
+        if acct_mask and institution_name:
+            sibling = (
+                db.query(Account)
+                .join(PlaidItem, Account.item_id == PlaidItem.item_id)
+                .filter(
+                    PlaidItem.institution_name == institution_name,
+                    PlaidItem.access_token != "manual",
+                    Account.item_id != item_id,
+                    Account.mask == acct_mask,
+                    Account.subtype == acct_subtype,
+                    Account.is_excluded == False,
+                )
+                .first()
+            )
+            if sibling:
+                is_excluded = True
+
         db.merge(Account(
             account_id=acct["account_id"],
             item_id=item_id,
@@ -417,5 +455,6 @@ def _upsert_accounts(client: plaid_api.PlaidApi, access_token: str, item_id: str
             mask=acct_mask,
             type=str(acct["type"]) if acct.get("type") else None,
             subtype=acct_subtype,
+            is_excluded=is_excluded,
         ))
     db.commit()
