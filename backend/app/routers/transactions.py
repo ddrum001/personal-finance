@@ -100,7 +100,7 @@ def list_transactions(
             "account_mask": acct.mask if acct else None,
             "account_type": acct.type if acct else None,
             "account_subtype": acct.subtype if acct else None,
-            "institution_name": item.institution_name if item else None,
+            "institution_name": t.institution_name or (item.institution_name if item else None),
             "needs_review": t.needs_review or False,
         })
     return result

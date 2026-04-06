@@ -314,6 +314,7 @@ async def import_csv(
             transaction_id=txn_id,
             account_id=account.account_id,
             item_id=item.item_id,
+            institution_name=institution_name,
             name=description,
             merchant_name=description,
             amount=amount,

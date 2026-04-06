@@ -56,6 +56,7 @@ class Transaction(Base):
     category = Column(String, nullable=True)        # Plaid-assigned category
     custom_category = Column(String, nullable=True) # user override
     merchant_name = Column(String, nullable=True)
+    institution_name = Column(String, nullable=True)  # denormalized for survivability after item deletion
     pending = Column(Boolean, default=False)
     needs_review = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

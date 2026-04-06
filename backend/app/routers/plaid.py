@@ -212,6 +212,7 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
                 transaction_id=txn["transaction_id"],
                 account_id=txn["account_id"],
                 item_id=item.item_id,
+                institution_name=item.institution_name,
                 name=txn["name"],
                 amount=txn["amount"],
                 date=txn["date"],
