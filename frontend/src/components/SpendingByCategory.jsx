@@ -30,6 +30,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
   const [loading, setLoading] = useState(false)
   const [drillTxns, setDrillTxns] = useState([])
   const [drillTxnsLoading, setDrillTxnsLoading] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState(null)
 
   // Derive fetch params from drillPath + baseLevel
   const { groupBy, filterMacro, filterCategory, canDrill } = useMemo(() => {
@@ -70,8 +71,6 @@ export default function SpendingByCategory({ startDate, endDate }) {
       .catch(console.error)
       .finally(() => setDrillTxnsLoading(false))
   }, [selectedCategory, startDate, endDate])
-
-  const [selectedCategory, setSelectedCategory] = useState(null)
 
   const handleBarClick = (entry) => {
     if (!entry) return
