@@ -234,7 +234,10 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   flexWrap: 'wrap',
                 }}>
                   <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500, minWidth: 120 }}>{t.merchant_name || t.name}</span>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                    <AccountBadge t={t} />
+                  </div>
                   <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
                     {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
                   </span>
@@ -281,7 +284,10 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   flexWrap: 'wrap',
                 }}>
                   <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500, minWidth: 120 }}>{t.merchant_name || t.name}</span>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                    <AccountBadge t={t} />
+                  </div>
                   <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
                     {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
                   </span>
