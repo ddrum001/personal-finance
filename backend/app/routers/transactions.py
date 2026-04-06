@@ -38,6 +38,8 @@ def list_transactions(
         q = q.filter(Transaction.account_id == account_id)
     if needs_review is not None:
         q = q.filter(Transaction.needs_review == needs_review)
+        if needs_review:
+            q = q.filter(Transaction.pending == False)
     if needs_splits:
         # Return unsplit transactions whose merchant matches any template pattern
         patterns = [t.merchant_pattern for t in db.query(MerchantSplitTemplate).all()]
