@@ -352,6 +352,7 @@ def list_items(db: Session = Depends(get_db)):
         result.append({
             "item_id": i.item_id,
             "institution_name": i.institution_name,
+            "is_manual": i.access_token == "manual",
             "created_at": i.created_at,
             "last_synced_at": i.last_synced_at,
             "accounts": [

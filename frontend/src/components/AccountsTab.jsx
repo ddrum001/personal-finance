@@ -85,7 +85,7 @@ export default function AccountsTab({ items, onRefresh }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {sorted.map((item) => {
-        const isManual = item.accounts.every(ac => ac.account_id.startsWith('manual'))
+        const isManual = item.is_manual
         return (
           <div key={item.item_id} style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
             {/* Institution header */}
