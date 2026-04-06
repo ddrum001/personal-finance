@@ -414,12 +414,17 @@ def _upsert_accounts(client: plaid_api.PlaidApi, access_token: str, item_id: str
         acct_mask = acct.get("mask")
 
         # Prefer to reuse an existing account row with the same identity
-        # (name + subtype) within this item so reconnects don't create duplicates.
-        existing = db.query(Account).filter(
+        # within this item so reconnects don't create duplicates.
+        # When a mask is available use it as a discriminator so two cards
+        # with the same generic name (e.g. "CREDIT CARD") aren't merged.
+        q = db.query(Account).filter(
             Account.item_id == item_id,
             Account.name == acct["name"],
             Account.subtype == acct_subtype,
-        ).first()
+        )
+        if acct_mask:
+            q = q.filter(Account.mask == acct_mask)
+        existing = q.first()
         if existing:
             existing.official_name = acct.get("official_name")
             existing.mask = acct_mask
