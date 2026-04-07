@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from typing import Optional
 from ..database import get_db
@@ -60,33 +59,23 @@ def list_keywords(category_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{category_id}/keywords", response_model=KeywordOut, status_code=201)
 def add_keyword(category_id: int, body: KeywordCreate, db: Session = Depends(get_db)):
-    import traceback
-    try:
-        if not db.get(BudgetCategory, category_id):
-            raise HTTPException(404, "Category not found")
-        keyword = body.keyword.strip().lower()
-        if not keyword:
-            raise HTTPException(400, "Keyword cannot be empty")
-        existing = db.query(CategoryKeyword).filter(CategoryKeyword.keyword == keyword).first()
-        if existing:
-            if existing.budget_category_id == category_id:
-                raise HTTPException(409, "Keyword already exists for this category")
-            other_cat = db.get(BudgetCategory, existing.budget_category_id)
-            other_name = other_cat.sub_category if other_cat else f"category #{existing.budget_category_id}"
-            raise HTTPException(409, f"Keyword '{keyword}' already assigned to '{other_name}'")
-        kw = CategoryKeyword(budget_category_id=category_id, keyword=keyword)
-        db.add(kw)
-        try:
-            db.commit()
-        except IntegrityError as ie:
-            db.rollback()
-            raise HTTPException(409, f"DB integrity error: {ie.orig}")
-        db.refresh(kw)
-        return kw
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Unexpected error: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+    if not db.get(BudgetCategory, category_id):
+        raise HTTPException(404, "Category not found")
+    keyword = body.keyword.strip().lower()
+    if not keyword:
+        raise HTTPException(400, "Keyword cannot be empty")
+    existing = db.query(CategoryKeyword).filter(CategoryKeyword.keyword == keyword).first()
+    if existing:
+        if existing.budget_category_id == category_id:
+            raise HTTPException(409, "Keyword already exists for this category")
+        other_cat = db.get(BudgetCategory, existing.budget_category_id)
+        other_name = other_cat.sub_category if other_cat else f"category #{existing.budget_category_id}"
+        raise HTTPException(409, f"Keyword '{keyword}' already assigned to '{other_name}'")
+    kw = CategoryKeyword(budget_category_id=category_id, keyword=keyword)
+    db.add(kw)
+    db.commit()
+    db.refresh(kw)
+    return kw
 
 
 @router.delete("/keywords/{keyword_id}", status_code=204)
