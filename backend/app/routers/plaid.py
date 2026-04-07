@@ -222,6 +222,18 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
                 needs_review=True,
             )
 
+            # Dedup: skip if same account/date/amount/name already exists (Plaid occasionally
+            # returns the same transaction with a different transaction_id)
+            content_dup = db.query(Transaction).filter(
+                Transaction.account_id == db_txn.account_id,
+                Transaction.date == db_txn.date,
+                Transaction.amount == db_txn.amount,
+                Transaction.name == db_txn.name,
+                Transaction.transaction_id != db_txn.transaction_id,
+            ).first()
+            if content_dup:
+                continue
+
             saved_splits = []
             if manual_accts:
                 plaid_acct = db.get(Account, txn["account_id"])
