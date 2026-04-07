@@ -89,6 +89,22 @@ class CategoryKeyword(Base):
     keyword = Column(String, nullable=False)
 
 
+class AmazonOrder(Base):
+    """Parsed Amazon order confirmation email."""
+    __tablename__ = "amazon_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(String, unique=True, nullable=False)       # e.g. 113-1234567-8901234
+    order_date = Column(Date, nullable=True)
+    order_total = Column(Float, nullable=True)
+    items = Column(Text, nullable=True)                          # JSON: [{description, quantity}]
+    gmail_message_id = Column(String, unique=True, nullable=True)
+    transaction_id = Column(String, ForeignKey("transactions.transaction_id", ondelete="SET NULL"), nullable=True)
+    match_type = Column(String, nullable=True)                   # 'auto' | 'manual'
+    suggested_category = Column(String, nullable=True)
+    synced_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class GmailCredential(Base):
     """Stores Gmail OAuth tokens for a user (keyed by login email)."""
     __tablename__ = "gmail_credentials"

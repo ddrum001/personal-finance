@@ -367,6 +367,34 @@ export async function disconnectGmail() {
   return res.json()
 }
 
+export async function syncAmazonOrders() {
+  const res = await fetch(`${BASE}/gmail/amazon/sync`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function getAmazonOrders() {
+  const res = await fetch(`${BASE}/gmail/amazon/orders`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function linkAmazonOrder(orderId, transactionId) {
+  const res = await fetch(`${BASE}/gmail/amazon/orders/${orderId}/link`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction_id: transactionId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function unlinkAmazonOrder(orderId) {
+  const res = await fetch(`${BASE}/gmail/amazon/orders/${orderId}/link`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 // ---------------------------------------------------------------------------
 // Cashflow
 // ---------------------------------------------------------------------------

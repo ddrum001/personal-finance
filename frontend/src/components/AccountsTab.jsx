@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail } from '../api/client'
+import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail, syncAmazonOrders, getAmazonOrders } from '../api/client'
 import PlaidLinkButton from './PlaidLink'
 
 function formatSyncTime(ts) {
@@ -32,9 +32,12 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [syncingItem, setSyncingItem] = useState(null)
   const [syncResults, setSyncResults] = useState({})
-  const [gmailStatus, setGmailStatus] = useState(null) // null=loading, {connected, gmail_address}
+  const [gmailStatus, setGmailStatus] = useState(null)
   const [gmailConnecting, setGmailConnecting] = useState(false)
   const [gmailError, setGmailError] = useState('')
+  const [amazonSyncing, setAmazonSyncing] = useState(false)
+  const [amazonSyncResult, setAmazonSyncResult] = useState(null)
+  const [unlinkedOrders, setUnlinkedOrders] = useState([])
 
   // Load Gmail status + handle redirect-back from OAuth
   useEffect(() => {
@@ -69,7 +72,35 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
   const handleGmailDisconnect = async () => {
     await disconnectGmail()
     setGmailStatus({ connected: false, gmail_address: null })
+    setUnlinkedOrders([])
   }
+
+  const handleAmazonSync = async () => {
+    setAmazonSyncing(true)
+    setAmazonSyncResult(null)
+    try {
+      const result = await syncAmazonOrders()
+      setAmazonSyncResult(result)
+      const orders = await getAmazonOrders()
+      setUnlinkedOrders(orders.filter(o => !o.transaction))
+    } catch (e) {
+      try { setAmazonSyncResult({ error: JSON.parse(e.message).detail }) }
+      catch { setAmazonSyncResult({ error: e.message }) }
+    } finally {
+      setAmazonSyncing(false)
+    }
+  }
+
+  const loadUnlinkedOrders = async () => {
+    try {
+      const orders = await getAmazonOrders()
+      setUnlinkedOrders(orders.filter(o => !o.transaction))
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (gmailStatus?.connected) loadUnlinkedOrders()
+  }, [gmailStatus?.connected])
 
   const startEdit = (acct) => {
     setEditing(acct.account_id)
@@ -155,11 +186,27 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
                 Connected as <strong>{gmailStatus.gmail_address || 'Gmail account'}</strong>
               </span>
               <button
+                onClick={handleAmazonSync}
+                disabled={amazonSyncing}
+                style={{ padding: '5px 14px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: amazonSyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 12, opacity: amazonSyncing ? 0.7 : 1 }}
+              >
+                {amazonSyncing ? 'Syncing…' : 'Sync Amazon Orders'}
+              </button>
+              <button
                 onClick={handleGmailDisconnect}
                 style={{ fontSize: 12, color: '#ef4444', background: 'none', border: '1px solid #fca5a5', borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}
               >
                 Disconnect
               </button>
+              {amazonSyncResult && !amazonSyncResult.error && (
+                <span style={{ fontSize: 12, color: '#15803d' }}>
+                  {amazonSyncResult.added} new order{amazonSyncResult.added !== 1 ? 's' : ''} found
+                  {amazonSyncResult.skipped > 0 ? ` · ${amazonSyncResult.skipped} already synced` : ''}
+                </span>
+              )}
+              {amazonSyncResult?.error && (
+                <span style={{ fontSize: 12, color: '#ef4444' }}>{amazonSyncResult.error}</span>
+              )}
             </>
           ) : (
             <>
@@ -178,6 +225,44 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
           {gmailError && <span style={{ fontSize: 12, color: '#ef4444' }}>{gmailError}</span>}
         </div>
       </div>
+
+      {/* Unlinked Amazon orders */}
+      {unlinkedOrders.length > 0 && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', background: '#fffbeb', borderBottom: '1px solid #e5e7eb' }}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Unmatched Amazon Orders</span>
+            <span style={{ marginLeft: 8, fontSize: 12, color: '#92400e' }}>
+              {unlinkedOrders.length} order{unlinkedOrders.length !== 1 ? 's' : ''} couldn't be auto-matched to a transaction
+            </span>
+          </div>
+          {unlinkedOrders.map(order => (
+            <div key={order.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>#{order.order_id}</span>
+                  <span style={{ fontSize: 12, color: '#888', marginLeft: 10 }}>{order.order_date}</span>
+                  {order.order_total != null && (
+                    <span style={{ fontSize: 12, color: '#555', marginLeft: 10 }}>${order.order_total.toFixed(2)}</span>
+                  )}
+                  {order.items?.length > 0 && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
+                      {order.items.slice(0, 3).map((item, i) => (
+                        <div key={i} style={{ marginLeft: 8 }}>· {item.description}</div>
+                      ))}
+                      {order.items.length > 3 && (
+                        <div style={{ marginLeft: 8, color: '#aaa' }}>+ {order.items.length - 3} more</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize: 11, color: '#aaa', whiteSpace: 'nowrap', marginTop: 2 }}>
+                  Manual linking coming soon
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {sorted.map((item) => {
         const isManual = item.is_manual
         return (
