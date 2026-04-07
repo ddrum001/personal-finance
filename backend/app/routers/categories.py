@@ -78,9 +78,9 @@ def add_keyword(category_id: int, body: KeywordCreate, db: Session = Depends(get
         db.add(kw)
         try:
             db.commit()
-        except IntegrityError:
+        except IntegrityError as ie:
             db.rollback()
-            raise HTTPException(409, f"Keyword '{keyword}' already exists (possibly for another category)")
+            raise HTTPException(409, f"DB integrity error: {ie.orig}")
         db.refresh(kw)
         return kw
     except HTTPException:
