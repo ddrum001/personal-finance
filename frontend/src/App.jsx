@@ -103,7 +103,6 @@ export default function App() {
             style={{ padding: '8px 12px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
             title="Help"
           >?</button>
-          <span style={{ fontSize: 13, color: '#888' }}>{user.name || user.email}</span>
           <button
             onClick={handleLogout}
             style={{ padding: '8px 16px', background: '#fff', color: '#888', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
