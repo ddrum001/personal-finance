@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags, renameSubCategory, renameCategory, renameMacro, moveSubCategory, moveCategoryToMacro } from '../api/client'
+import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags, renameSubCategory, renameCategory, renameMacro, moveSubCategory, moveCategoryToMacro, deleteSubCategory, deleteCategoryGroup, deleteMacroGroup } from '../api/client'
 import AddCategoryModal from './AddCategoryModal'
 
 export default function CategoriesTab() {
@@ -142,6 +142,7 @@ export default function CategoriesTab() {
           onHideChange={load}
           onRename={load}
           onMove={load}
+          onDelete={load}
           hierarchy={hierarchy}
         />
       ))}
@@ -159,18 +160,25 @@ export default function CategoriesTab() {
 // Macro-category accordion section
 // ---------------------------------------------------------------------------
 
-function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleCat, onKeywordChange, onAddHere, onHideChange, onRename, onMove, hierarchy }) {
+function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleCat, onKeywordChange, onAddHere, onHideChange, onRename, onMove, onDelete, hierarchy }) {
   const allSubs = Object.values(cats).flat()
   const subCount = allSubs.length
   const catCount = Object.keys(cats).length
   const hiddenCount = allSubs.filter(s => s.hide_from_reports).length
   const allHidden = hiddenCount === subCount
   const someHidden = hiddenCount > 0 && !allHidden
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const handleMacroHide = async (e) => {
     e.stopPropagation()
     await setMacroHideFromReports(macro, !allHidden)
     onHideChange()
+  }
+
+  const handleDelete = async (e) => {
+    e.stopPropagation()
+    await deleteMacroGroup(macro)
+    onDelete()
   }
 
   return (
@@ -208,6 +216,15 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
         >
           {allHidden ? '🚫 Hidden' : someHidden ? '◑ Partial' : '✓ Visible'}
         </button>
+        {confirmDelete ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 12, fontSize: 12 }} onClick={e => e.stopPropagation()}>
+            <span style={{ color: '#ef4444', fontWeight: 600 }}>Delete all {subCount} sub-categories?</span>
+            <button onClick={handleDelete} style={smallBtn('#ef4444')}>Delete</button>
+            <button onClick={() => setConfirmDelete(false)} style={smallBtn('#9ca3af')}>Cancel</button>
+          </span>
+        ) : (
+          <button onClick={e => { e.stopPropagation(); setConfirmDelete(true) }} className="edit-pencil" title="Delete macro-category" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 14, marginRight: 12, padding: 0 }}>🗑</button>
+        )}
       </div>
 
       {expanded && (
@@ -227,6 +244,7 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
                 onHideChange={onHideChange}
                 onRename={onRename}
                 onMove={onMove}
+                onDelete={onDelete}
                 hierarchy={hierarchy}
               />
             )
@@ -247,10 +265,11 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
 // Category accordion section
 // ---------------------------------------------------------------------------
 
-function CategorySection({ cat, macro, subs, expanded, onToggle, onKeywordChange, onAddHere, onHideChange, onRename, onMove, hierarchy }) {
+function CategorySection({ cat, macro, subs, expanded, onToggle, onKeywordChange, onAddHere, onHideChange, onRename, onMove, onDelete, hierarchy }) {
   const [movingCat, setMovingCat] = useState(false)
   const [targetMacro, setTargetMacro] = useState('')
   const [moveError, setMoveError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const allMacros = Object.keys(hierarchy).filter(m => m !== macro)
 
   const handleMoveCategory = async () => {
@@ -285,8 +304,17 @@ function CategorySection({ cat, macro, subs, expanded, onToggle, onKeywordChange
           onClick={e => { e.stopPropagation(); setMovingCat(v => !v); setTargetMacro(''); setMoveError('') }}
           title="Move to different macro-category"
           className="edit-pencil"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ca3af', padding: '0 12px' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ca3af', padding: '0 6px' }}
         >⇄</button>
+        {confirmDelete ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 8, fontSize: 12 }} onClick={e => e.stopPropagation()}>
+            <span style={{ color: '#ef4444', fontWeight: 600 }}>Delete {subs.length} sub-{subs.length === 1 ? 'category' : 'categories'}?</span>
+            <button onClick={async () => { await deleteCategoryGroup(cat, macro); onDelete() }} style={smallBtn('#ef4444')}>Delete</button>
+            <button onClick={() => setConfirmDelete(false)} style={smallBtn('#9ca3af')}>Cancel</button>
+          </span>
+        ) : (
+          <button onClick={e => { e.stopPropagation(); setConfirmDelete(true) }} className="edit-pencil" title="Delete category" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 13, marginRight: 8, padding: 0 }}>🗑</button>
+        )}
       </div>
 
       {movingCat && (
@@ -315,6 +343,7 @@ function CategorySection({ cat, macro, subs, expanded, onToggle, onKeywordChange
               onKeywordChange={onKeywordChange}
               onHideChange={onHideChange}
               onMove={onMove}
+              onDelete={onDelete}
               hierarchy={hierarchy}
             />
           ))}
@@ -336,7 +365,7 @@ function CategorySection({ cat, macro, subs, expanded, onToggle, onKeywordChange
 // Sub-category row with keyword management
 // ---------------------------------------------------------------------------
 
-function SubCategoryRow({ sub, onKeywordChange, onHideChange, onMove, hierarchy }) {
+function SubCategoryRow({ sub, onKeywordChange, onHideChange, onMove, onDelete, hierarchy }) {
   const [adding, setAdding] = useState(false)
   const [newKw, setNewKw] = useState('')
   const [error, setError] = useState('')
@@ -345,6 +374,7 @@ function SubCategoryRow({ sub, onKeywordChange, onHideChange, onMove, hierarchy 
   const [targetCat, setTargetCat] = useState('')
   const [newCatName, setNewCatName] = useState('')
   const [moveError, setMoveError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const inputRef = useRef(null)
 
   const allMacros = Object.keys(hierarchy)
@@ -418,6 +448,15 @@ function SubCategoryRow({ sub, onKeywordChange, onHideChange, onMove, hierarchy 
             className="edit-pencil"
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ca3af', padding: 0 }}
           >⇄</button>
+          {confirmDelete ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+              <span style={{ color: '#ef4444', fontWeight: 600 }}>Delete?</span>
+              <button onClick={async () => { await deleteSubCategory(sub.id); onDelete() }} style={smallBtn('#ef4444')}>Yes</button>
+              <button onClick={() => setConfirmDelete(false)} style={smallBtn('#9ca3af')}>No</button>
+            </span>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} className="edit-pencil" title="Delete sub-category" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fca5a5', fontSize: 12, padding: 0 }}>🗑</button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
           <ToggleBadge

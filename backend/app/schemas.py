@@ -83,7 +83,7 @@ class TransactionOut(BaseModel):
 
 
 class CategoryCreate(BaseModel):
-    sub_category: str
+    sub_category: Optional[str] = None
     category: str
     macro_category: str
     is_discretionary: bool = False

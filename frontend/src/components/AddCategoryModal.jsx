@@ -46,12 +46,11 @@ export default function AddCategoryModal({ hierarchy, prefillMacro, prefillCateg
     setError('')
     if (!macro.trim()) return setError('Macro category is required.')
     if (!category.trim()) return setError('Category is required.')
-    if (!subCategory.trim()) return setError('Sub-category name is required.')
 
     setSaving(true)
     try {
       await createCategory({
-        sub_category: subCategory.trim(),
+        sub_category: subCategory.trim() || undefined,
         category: category.trim(),
         macro_category: macro.trim(),
         is_discretionary: isDiscretionary,
@@ -75,7 +74,7 @@ export default function AddCategoryModal({ hierarchy, prefillMacro, prefillCateg
       <div className="modal modal-sm">
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700 }}>Add Sub-Category</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700 }}>Add Category</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9ca3af' }}>✕</button>
         </div>
 
@@ -108,11 +107,11 @@ export default function AddCategoryModal({ hierarchy, prefillMacro, prefillCateg
           </div>
 
           <div style={row}>
-            <label style={label}>Sub-Category Name <Required /></label>
+            <label style={label}>Sub-Category Name <span style={{ color: '#9ca3af', fontWeight: 400 }}>(optional)</span></label>
             <input
               value={subCategory}
               onChange={e => setSubCategory(e.target.value)}
-              placeholder="e.g. Whole Foods Run"
+              placeholder={category.trim() ? `Defaults to "${category.trim()}" if left blank` : 'e.g. Whole Foods Run'}
               style={input}
               autoFocus
             />
@@ -162,14 +161,14 @@ export default function AddCategoryModal({ hierarchy, prefillMacro, prefillCateg
           <button onClick={onClose} style={cancelBtn}>Cancel</button>
           <button
             onClick={handleSave}
-            disabled={saving || !macro.trim() || !category.trim() || !subCategory.trim()}
+            disabled={saving || !macro.trim() || !category.trim()}
             style={{
               ...saveBtn,
-              opacity: (saving || !macro.trim() || !category.trim() || !subCategory.trim()) ? 0.5 : 1,
-              cursor: (saving || !macro.trim() || !category.trim() || !subCategory.trim()) ? 'not-allowed' : 'pointer',
+              opacity: (saving || !macro.trim() || !category.trim()) ? 0.5 : 1,
+              cursor: (saving || !macro.trim() || !category.trim()) ? 'not-allowed' : 'pointer',
             }}
           >
-            {saving ? 'Saving…' : 'Save Sub-Category'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>

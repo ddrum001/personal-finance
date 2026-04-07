@@ -267,6 +267,26 @@ export async function renameCategory(oldName, newName) {
   return res.json()
 }
 
+export async function deleteSubCategory(id) {
+  const res = await fetch(`${BASE}/categories/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deleteCategoryGroup(category, macro) {
+  const params = new URLSearchParams({ category, macro })
+  const res = await fetch(`${BASE}/categories/delete-category?${params}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deleteMacroGroup(macro) {
+  const params = new URLSearchParams({ macro })
+  const res = await fetch(`${BASE}/categories/delete-macro?${params}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function moveSubCategory(id, newCategory, newMacro) {
   const res = await fetch(`${BASE}/categories/${id}/move`, {
     method: 'PATCH',

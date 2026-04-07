@@ -138,13 +138,70 @@ def apply_keywords(db: Session = Depends(get_db)):
     return ApplyKeywordsResponse(labeled=result["labeled"], skipped=result["skipped"])
 
 
+# ---------------------------------------------------------------------------
+# Delete endpoints (must be registered before /{category_id} routes)
+# ---------------------------------------------------------------------------
+
+def _unlink_sub_categories(db: Session, sub_category_names: list[str]):
+    """Null out budget_sub_category on transactions/splits and flag for re-review."""
+    if not sub_category_names:
+        return
+    db.query(Transaction).filter(Transaction.budget_sub_category.in_(sub_category_names)).update(
+        {Transaction.budget_sub_category: None, Transaction.needs_review: True},
+        synchronize_session=False,
+    )
+    db.query(TransactionSplit).filter(TransactionSplit.budget_sub_category.in_(sub_category_names)).update(
+        {TransactionSplit.budget_sub_category: None},
+        synchronize_session=False,
+    )
+
+
+@router.delete("/delete-category", response_model=dict)
+def delete_category(category: str, macro: str, db: Session = Depends(get_db)):
+    rows = db.query(BudgetCategory).filter(
+        BudgetCategory.category == category,
+        BudgetCategory.macro_category == macro,
+    ).all()
+    if not rows:
+        raise HTTPException(404, f"Category '{category}' not found")
+    _unlink_sub_categories(db, [r.sub_category for r in rows])
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return {"deleted": len(rows)}
+
+
+@router.delete("/delete-macro", response_model=dict)
+def delete_macro(macro: str, db: Session = Depends(get_db)):
+    rows = db.query(BudgetCategory).filter(BudgetCategory.macro_category == macro).all()
+    if not rows:
+        raise HTTPException(404, f"Macro '{macro}' not found")
+    _unlink_sub_categories(db, [r.sub_category for r in rows])
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return {"deleted": len(rows)}
+
+
+@router.delete("/{category_id}", response_model=dict)
+def delete_sub_category(category_id: int, db: Session = Depends(get_db)):
+    cat = db.get(BudgetCategory, category_id)
+    if not cat:
+        raise HTTPException(404, "Category not found")
+    _unlink_sub_categories(db, [cat.sub_category])
+    db.delete(cat)
+    db.commit()
+    return {"deleted": 1}
+
+
 @router.post("/", response_model=BudgetCategoryOut, status_code=201)
 def create_category(body: CategoryCreate, db: Session = Depends(get_db)):
-    sub = body.sub_category.strip()
     cat = body.category.strip()
     macro = body.macro_category.strip()
+    # If sub_category is omitted, default to the category name
+    sub = body.sub_category.strip() if body.sub_category else cat
     if not sub or not cat or not macro:
-        raise HTTPException(400, "sub_category, category, and macro_category are all required")
+        raise HTTPException(400, "category and macro_category are required")
 
     if db.query(BudgetCategory).filter(BudgetCategory.sub_category == sub).first():
         raise HTTPException(409, f"Sub-category '{sub}' already exists")
