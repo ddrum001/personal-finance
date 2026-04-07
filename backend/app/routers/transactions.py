@@ -299,7 +299,7 @@ def summary_by_category(
         else:
             if filter_macro or filter_category:
                 return None
-        return fallback_cat or "Uncategorized"
+        return "Uncategorized"
 
     excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
     date_filter = [

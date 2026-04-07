@@ -31,6 +31,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
   const [drillTxns, setDrillTxns] = useState([])
   const [drillTxnsLoading, setDrillTxnsLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState(null)
+  const [showUncategorized, setShowUncategorized] = useState(true)
 
   // Derive fetch params from drillPath + baseLevel
   const { groupBy, filterMacro, filterCategory, canDrill } = useMemo(() => {
@@ -97,7 +98,8 @@ export default function SpendingByCategory({ startDate, endDate }) {
     setSelectedCategory(null)
   }
 
-  const chartHeight = Math.max(280, data.length * 38 + 60)
+  const displayData = showUncategorized ? data : data.filter(d => d.category !== 'Uncategorized')
+  const chartHeight = Math.max(280, displayData.length * 38 + 60)
 
   const breadcrumbs = drillPath.length > 0
     ? [{ label: 'All', onClick: () => setDrillPath([]) }, ...drillPath.map((item, i) => ({
@@ -140,6 +142,19 @@ export default function SpendingByCategory({ startDate, endDate }) {
           )}
           {canDrill && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to drill down</span>}
           {!canDrill && !selectedCategory && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to see recent transactions</span>}
+          {data.some(d => d.category === 'Uncategorized') && (
+            <button
+              onClick={() => setShowUncategorized(s => !s)}
+              style={{
+                padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: '1px solid #e5e7eb',
+                background: showUncategorized ? '#fef9c3' : '#fff',
+                color: showUncategorized ? '#854d0e' : '#9ca3af',
+              }}
+            >
+              {showUncategorized ? 'Hide Uncategorized' : 'Show Uncategorized'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -165,7 +180,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
       ) : (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
-            data={data}
+            data={displayData}
             layout="vertical"
             margin={{ top: 4, right: 80, left: 8, bottom: 4 }}
           >
@@ -189,7 +204,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
               cursor="pointer"
               onClick={(d) => handleBarClick(d)}
             >
-              {data.map((entry, i) => (
+              {displayData.map((entry, i) => (
                 <Cell key={i} fill={selectedCategory?.label === entry.category ? '#4f46e5' : COLORS[i % COLORS.length]} />
               ))}
               <LabelList
