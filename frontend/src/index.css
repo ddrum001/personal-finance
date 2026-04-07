@@ -180,3 +180,7 @@ body { font-family: system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; 
   /* Category rows easier to tap */
   .sub-cat-row { padding: 12px 12px 12px 16px !important; }
 }
+
+.edit-pencil { opacity: 0; transition: opacity 0.15s; }
+*:hover > .edit-pencil,
+span:hover > .edit-pencil { opacity: 1; }

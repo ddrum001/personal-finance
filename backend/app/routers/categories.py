@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from ..database import get_db
-from ..models import BudgetCategory, CategoryKeyword, Transaction
+from ..models import BudgetCategory, CategoryKeyword, Transaction, TransactionSplit
 from ..schemas import BudgetCategoryOut, CategoryCreate, KeywordOut, KeywordCreate, ApplyKeywordsResponse
 
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -217,3 +217,63 @@ def set_macro_hide_from_reports(body: MacroHideBody, db: Session = Depends(get_d
         row.hide_from_reports = body.hide
     db.commit()
     return {"updated": len(rows), "macro_category": body.macro_category, "hide": body.hide}
+
+
+# ---------------------------------------------------------------------------
+# Rename endpoints
+# ---------------------------------------------------------------------------
+
+class RenameBody(BaseModel):
+    new_name: str
+
+
+class RenameBulkBody(BaseModel):
+    old_name: str
+    new_name: str
+
+
+@router.patch("/{category_id}/rename", response_model=BudgetCategoryOut)
+def rename_sub_category(category_id: int, body: RenameBody, db: Session = Depends(get_db)):
+    cat = db.get(BudgetCategory, category_id)
+    if not cat:
+        raise HTTPException(404, "Category not found")
+    new_name = body.new_name.strip()
+    if not new_name:
+        raise HTTPException(400, "Name cannot be empty")
+    if db.query(BudgetCategory).filter(BudgetCategory.sub_category == new_name, BudgetCategory.id != category_id).first():
+        raise HTTPException(409, f"Sub-category '{new_name}' already exists")
+    old_name = cat.sub_category
+    cat.sub_category = new_name
+    db.query(Transaction).filter(Transaction.budget_sub_category == old_name).update({Transaction.budget_sub_category: new_name})
+    db.query(TransactionSplit).filter(TransactionSplit.budget_sub_category == old_name).update({TransactionSplit.budget_sub_category: new_name})
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+
+@router.patch("/rename-category", response_model=dict)
+def rename_category(body: RenameBulkBody, db: Session = Depends(get_db)):
+    old, new = body.old_name.strip(), body.new_name.strip()
+    if not new:
+        raise HTTPException(400, "Name cannot be empty")
+    rows = db.query(BudgetCategory).filter(BudgetCategory.category == old).all()
+    if not rows:
+        raise HTTPException(404, f"Category '{old}' not found")
+    for row in rows:
+        row.category = new
+    db.commit()
+    return {"updated": len(rows), "old_name": old, "new_name": new}
+
+
+@router.patch("/rename-macro", response_model=dict)
+def rename_macro(body: RenameBulkBody, db: Session = Depends(get_db)):
+    old, new = body.old_name.strip(), body.new_name.strip()
+    if not new:
+        raise HTTPException(400, "Name cannot be empty")
+    rows = db.query(BudgetCategory).filter(BudgetCategory.macro_category == old).all()
+    if not rows:
+        raise HTTPException(404, f"Macro '{old}' not found")
+    for row in rows:
+        row.macro_category = new
+    db.commit()
+    return {"updated": len(rows), "old_name": old, "new_name": new}

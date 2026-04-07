@@ -247,6 +247,36 @@ export async function setMacroHideFromReports(macroCategory, hide) {
   return res.json()
 }
 
+export async function renameSubCategory(id, newName) {
+  const res = await fetch(`${BASE}/categories/${id}/rename`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_name: newName }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function renameCategory(oldName, newName) {
+  const res = await fetch(`${BASE}/categories/rename-category`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_name: oldName, new_name: newName }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function renameMacro(oldName, newName) {
+  const res = await fetch(`${BASE}/categories/rename-macro`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_name: oldName, new_name: newName }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function applyKeywords() {
   const res = await fetch(`${BASE}/categories/apply-keywords`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())

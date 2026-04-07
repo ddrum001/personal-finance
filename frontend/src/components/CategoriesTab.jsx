@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags } from '../api/client'
+import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags, renameSubCategory, renameCategory, renameMacro } from '../api/client'
 import AddCategoryModal from './AddCategoryModal'
 
 export default function CategoriesTab() {
@@ -140,6 +140,7 @@ export default function CategoriesTab() {
           onKeywordChange={load}
           onAddHere={(prefillMacro, prefillCategory) => setAddModal({ prefillMacro, prefillCategory })}
           onHideChange={load}
+          onRename={load}
         />
       ))}
 
@@ -156,7 +157,7 @@ export default function CategoriesTab() {
 // Macro-category accordion section
 // ---------------------------------------------------------------------------
 
-function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleCat, onKeywordChange, onAddHere, onHideChange }) {
+function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleCat, onKeywordChange, onAddHere, onHideChange, onRename }) {
   const allSubs = Object.values(cats).flat()
   const subCount = allSubs.length
   const catCount = Object.keys(cats).length
@@ -187,7 +188,7 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
             fontWeight: 700, fontSize: 15, opacity: allHidden ? 0.5 : 1,
           }}
         >
-          <span>{expanded ? '▾' : '▸'} {macro}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{expanded ? '▾' : '▸'} <InlineEdit value={macro} onSave={newName => renameMacro(macro, newName).then(onRename)} /></span>
           <span style={{ fontSize: 12, fontWeight: 400, color: '#666' }}>
             {catCount} {catCount === 1 ? 'category' : 'categories'} · {subCount} sub-categories
           </span>
@@ -221,6 +222,7 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
                 onKeywordChange={onKeywordChange}
                 onAddHere={() => onAddHere(macro, cat)}
                 onHideChange={onHideChange}
+                onRename={onRename}
               />
             )
           })}
@@ -240,7 +242,7 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
 // Category accordion section
 // ---------------------------------------------------------------------------
 
-function CategorySection({ cat, subs, expanded, onToggle, onKeywordChange, onAddHere, onHideChange }) {
+function CategorySection({ cat, subs, expanded, onToggle, onKeywordChange, onAddHere, onHideChange, onRename }) {
   return (
     <div style={{ borderRadius: 8, border: '1px solid #e9ebf0', background: '#fff' }}>
       <button
@@ -251,7 +253,7 @@ function CategorySection({ cat, subs, expanded, onToggle, onKeywordChange, onAdd
           fontWeight: 600, fontSize: 14,
         }}
       >
-        <span>{expanded ? '▾' : '▸'} {cat}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{expanded ? '▾' : '▸'} <InlineEdit value={cat} onSave={newName => renameCategory(cat, newName).then(onRename)} /></span>
         <span style={{ fontSize: 12, fontWeight: 400, color: '#888' }}>
           {subs.length} sub-{subs.length === 1 ? 'category' : 'categories'}
         </span>
@@ -329,7 +331,7 @@ function SubCategoryRow({ sub, onKeywordChange, onHideChange }) {
       {/* Sub-category name + badges */}
       <div style={{ minWidth: 220 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, opacity: sub.hide_from_reports ? 0.45 : 1 }}>{sub.sub_category}</span>
+          <InlineEdit value={sub.sub_category} onSave={newName => renameSubCategory(sub.id, newName).then(onKeywordChange)} style={{ fontSize: 13, fontWeight: 500, opacity: sub.hide_from_reports ? 0.45 : 1 }} />
           <button
             onClick={async () => { await setHideFromReports(sub.id, !sub.hide_from_reports); onHideChange() }}
             title={sub.hide_from_reports ? 'Show in reports' : 'Hide from reports'}
@@ -438,4 +440,66 @@ function Badge({ color, text, textColor }) {
 
 function smallBtn(bg) {
   return { padding: '3px 8px', background: bg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }
+}
+
+// ---------------------------------------------------------------------------
+// Inline name editor — shows pencil icon, clicking opens an input
+// ---------------------------------------------------------------------------
+function InlineEdit({ value, onSave, style = {} }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const inputRef = useRef(null)
+
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+
+  const handleSave = async () => {
+    const trimmed = draft.trim()
+    if (!trimmed || trimmed === value) { setEditing(false); setDraft(value); return }
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(trimmed)
+      setEditing(false)
+    } catch (e) {
+      try { setError(JSON.parse(e.message).detail) } catch { setError(e.message) }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSave()
+    if (e.key === 'Escape') { setEditing(false); setDraft(value) }
+    e.stopPropagation()
+  }
+
+  if (editing) return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={e => e.stopPropagation()}>
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => { setDraft(e.target.value); setError('') }}
+        onKeyDown={handleKeyDown}
+        disabled={saving}
+        style={{ padding: '2px 6px', border: `1px solid ${error ? '#ef4444' : '#6366f1'}`, borderRadius: 4, fontSize: 'inherit', fontWeight: 'inherit', width: Math.max(120, draft.length * 8) }}
+      />
+      <button onClick={handleSave} disabled={saving} style={smallBtn('#6366f1')}>{saving ? '…' : '✓'}</button>
+      <button onClick={() => { setEditing(false); setDraft(value) }} style={smallBtn('#9ca3af')}>✕</button>
+      {error && <span style={{ fontSize: 11, color: '#ef4444' }}>{error}</span>}
+    </span>
+  )
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...style }}>
+      <span>{value}</span>
+      <button
+        onClick={e => { e.stopPropagation(); setDraft(value); setEditing(true) }}
+        title="Rename"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 12, padding: 0, lineHeight: 1 }}
+        className="edit-pencil"
+      >✏</button>
+    </span>
+  )
 }
