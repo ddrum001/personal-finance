@@ -110,12 +110,6 @@ export default function App() {
           >
             Sign out
           </button>
-          <button
-            onClick={() => setImporting(true)}
-            style={{ padding: '8px 16px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
-          >
-            Import CSV
-          </button>
           {items.length > 0 && (
             <button onClick={handleSync} disabled={syncing} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
               {syncing ? 'Syncing…' : 'Sync All'}
@@ -216,7 +210,7 @@ export default function App() {
       {tab === 'accounts' && (
         <section className="card">
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Linked Accounts</h2>
-          <AccountsTab items={items} onRefresh={loadData} />
+          <AccountsTab items={items} onRefresh={loadData} onImportCsv={() => setImporting(true)} />
         </section>
       )}
 

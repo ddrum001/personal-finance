@@ -24,7 +24,7 @@ function displayName(acct) {
   return name
 }
 
-export default function AccountsTab({ items, onRefresh }) {
+export default function AccountsTab({ items, onRefresh, onImportCsv }) {
   const [editing, setEditing] = useState(null) // account_id being edited
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -84,6 +84,14 @@ export default function AccountsTab({ items, onRefresh }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={onImportCsv}
+          style={{ padding: '7px 16px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+        >
+          Import CSV
+        </button>
+      </div>
       {sorted.map((item) => {
         const isManual = item.is_manual
         return (
