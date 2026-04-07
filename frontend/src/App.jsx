@@ -115,7 +115,6 @@ export default function App() {
               {syncing ? 'Syncing…' : 'Sync All'}
             </button>
           )}
-          <PlaidLinkButton onSuccess={loadData} />
         </div>
       </header>
 
@@ -210,7 +209,7 @@ export default function App() {
       {tab === 'accounts' && (
         <section className="card">
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Linked Accounts</h2>
-          <AccountsTab items={items} onRefresh={loadData} onImportCsv={() => setImporting(true)} />
+          <AccountsTab items={items} onRefresh={loadData} onImportCsv={() => setImporting(true)} onPlaidSuccess={loadData} />
         </section>
       )}
 

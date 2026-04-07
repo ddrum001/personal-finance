@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded } from '../api/client'
+import PlaidLinkButton from './PlaidLink'
 
 function formatSyncTime(ts) {
   if (!ts) return 'Never'
@@ -24,7 +25,7 @@ function displayName(acct) {
   return name
 }
 
-export default function AccountsTab({ items, onRefresh, onImportCsv }) {
+export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSuccess }) {
   const [editing, setEditing] = useState(null) // account_id being edited
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -84,13 +85,14 @@ export default function AccountsTab({ items, onRefresh, onImportCsv }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button
           onClick={onImportCsv}
           style={{ padding: '7px 16px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
         >
           Import CSV
         </button>
+        <PlaidLinkButton onSuccess={onPlaidSuccess} />
       </div>
       {sorted.map((item) => {
         const isManual = item.is_manual
