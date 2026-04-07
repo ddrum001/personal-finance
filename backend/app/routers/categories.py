@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from typing import Optional
 from ..database import get_db
@@ -64,15 +65,20 @@ def add_keyword(category_id: int, body: KeywordCreate, db: Session = Depends(get
     keyword = body.keyword.strip().lower()
     if not keyword:
         raise HTTPException(400, "Keyword cannot be empty")
-    existing = db.query(CategoryKeyword).filter(
-        CategoryKeyword.budget_category_id == category_id,
-        CategoryKeyword.keyword == keyword,
-    ).first()
+    existing = db.query(CategoryKeyword).filter(CategoryKeyword.keyword == keyword).first()
     if existing:
-        raise HTTPException(409, "Keyword already exists for this category")
+        if existing.budget_category_id == category_id:
+            raise HTTPException(409, "Keyword already exists for this category")
+        other_cat = db.get(BudgetCategory, existing.budget_category_id)
+        other_name = other_cat.sub_category if other_cat else f"category #{existing.budget_category_id}"
+        raise HTTPException(409, f"Keyword '{keyword}' already assigned to '{other_name}'")
     kw = CategoryKeyword(budget_category_id=category_id, keyword=keyword)
     db.add(kw)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(409, f"Keyword '{keyword}' already exists (possibly for another category)")
     db.refresh(kw)
     return kw
 
