@@ -372,8 +372,7 @@ def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
     # This query is sent to the Gmail API server-side — only matching message
     # IDs are returned. No other emails are fetched or transmitted.
     # -----------------------------------------------------------------------
-    since = (datetime.now(timezone.utc) - timedelta(days=180)).strftime("%Y/%m/%d")
-    query = f"from:{AMAZON_SENDER} after:{since}"
+    query = f"from:{AMAZON_SENDER}"
 
     # Collect all matching message IDs (paginated)
     message_refs = []
