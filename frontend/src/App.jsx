@@ -117,14 +117,6 @@ export default function App() {
         </div>
       </header>
 
-      {items.length > 0 && (
-        <p style={{ fontSize: 13, color: '#555', marginBottom: 16 }}>
-          Linked: {items.map((i) => {
-            const n = i.accounts?.length ?? 0
-            return `${i.institution_name || i.item_id}${n ? ` (${n} account${n !== 1 ? 's' : ''})` : ''}`
-          }).join(' · ')}
-        </p>
-      )}
 
       <nav className="nav-tabs">
         {['dashboard', 'transactions', 'accounts', 'cashflow', 'categories'].map((t) => (
