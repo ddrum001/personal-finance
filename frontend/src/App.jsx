@@ -33,6 +33,9 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
   const [splitQueueMode, setSplitQueueMode] = useState(false)
+  const [txnOffset, setTxnOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const PAGE_SIZE = 500
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -60,14 +63,24 @@ export default function App() {
       ? { needsReview: true, limit: 2000 }
       : splitQueueMode
       ? { needsSplits: true }
-      : { startDate, endDate }
+      : { startDate, endDate, limit: PAGE_SIZE, offset: 0 }
     const [txns, linkedItems] = await Promise.all([
       getTransactions(params),
       listItems(),
     ])
     setTransactions(txns)
     setItems(linkedItems)
+    setTxnOffset(0)
+    setHasMore(!reviewMode && !splitQueueMode && txns.length === PAGE_SIZE)
   }, [user, startDate, endDate, reviewMode, splitQueueMode])
+
+  const loadMore = useCallback(async () => {
+    const nextOffset = txnOffset + PAGE_SIZE
+    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset })
+    setTransactions(prev => [...prev, ...more])
+    setTxnOffset(nextOffset)
+    setHasMore(more.length === PAGE_SIZE)
+  }, [startDate, endDate, txnOffset])
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (user) getCategories().then(setCategories).catch(console.error) }, [user])
@@ -193,6 +206,8 @@ export default function App() {
             items={items}
             reviewMode={reviewMode}
             splitQueueMode={splitQueueMode}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
           />
         </section>
       )}

@@ -3,7 +3,7 @@ import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, ac
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
-export default function TransactionList({ transactions, onUpdated, categories, reviewMode, splitQueueMode }) {
+export default function TransactionList({ transactions, onUpdated, categories, reviewMode, splitQueueMode, hasMore, onLoadMore }) {
   const [editing, setEditing] = useState(null)
   const [newBudgetSubCategory, setNewBudgetSubCategory] = useState(null)
   const [splitting, setSplitting] = useState(null)
@@ -446,6 +446,17 @@ export default function TransactionList({ transactions, onUpdated, categories, r
           )
         })}
       </div>
+
+      {hasMore && (
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <button
+            onClick={onLoadMore}
+            style={{ padding: '10px 28px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+          >
+            Load more transactions
+          </button>
+        </div>
+      )}
     </>
   )
 }
