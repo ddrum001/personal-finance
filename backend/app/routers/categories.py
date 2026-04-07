@@ -277,3 +277,53 @@ def rename_macro(body: RenameBulkBody, db: Session = Depends(get_db)):
         row.macro_category = new
     db.commit()
     return {"updated": len(rows), "old_name": old, "new_name": new}
+
+
+# ---------------------------------------------------------------------------
+# Move endpoints
+# ---------------------------------------------------------------------------
+
+class MoveSubCategoryBody(BaseModel):
+    new_category: str
+    new_macro_category: str
+
+
+class MoveCategoryBody(BaseModel):
+    category: str
+    old_macro: str
+    new_macro: str
+
+
+@router.patch("/{category_id}/move", response_model=BudgetCategoryOut)
+def move_sub_category(category_id: int, body: MoveSubCategoryBody, db: Session = Depends(get_db)):
+    cat = db.get(BudgetCategory, category_id)
+    if not cat:
+        raise HTTPException(404, "Category not found")
+    new_cat = body.new_category.strip()
+    new_macro = body.new_macro_category.strip()
+    if not new_cat or not new_macro:
+        raise HTTPException(400, "category and macro_category are required")
+    cat.category = new_cat
+    cat.macro_category = new_macro
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+
+@router.patch("/move-category", response_model=dict)
+def move_category(body: MoveCategoryBody, db: Session = Depends(get_db)):
+    cat_name = body.category.strip()
+    old_macro = body.old_macro.strip()
+    new_macro = body.new_macro.strip()
+    if not new_macro:
+        raise HTTPException(400, "new_macro is required")
+    rows = db.query(BudgetCategory).filter(
+        BudgetCategory.category == cat_name,
+        BudgetCategory.macro_category == old_macro,
+    ).all()
+    if not rows:
+        raise HTTPException(404, f"Category '{cat_name}' under '{old_macro}' not found")
+    for row in rows:
+        row.macro_category = new_macro
+    db.commit()
+    return {"updated": len(rows), "category": cat_name, "new_macro": new_macro}

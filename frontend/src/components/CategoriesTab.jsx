@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags, renameSubCategory, renameCategory, renameMacro } from '../api/client'
+import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags, renameSubCategory, renameCategory, renameMacro, moveSubCategory, moveCategoryToMacro } from '../api/client'
 import AddCategoryModal from './AddCategoryModal'
 
 export default function CategoriesTab() {
@@ -141,6 +141,8 @@ export default function CategoriesTab() {
           onAddHere={(prefillMacro, prefillCategory) => setAddModal({ prefillMacro, prefillCategory })}
           onHideChange={load}
           onRename={load}
+          onMove={load}
+          hierarchy={hierarchy}
         />
       ))}
 
@@ -157,7 +159,7 @@ export default function CategoriesTab() {
 // Macro-category accordion section
 // ---------------------------------------------------------------------------
 
-function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleCat, onKeywordChange, onAddHere, onHideChange, onRename }) {
+function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleCat, onKeywordChange, onAddHere, onHideChange, onRename, onMove, hierarchy }) {
   const allSubs = Object.values(cats).flat()
   const subCount = allSubs.length
   const catCount = Object.keys(cats).length
@@ -216,6 +218,7 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
               <CategorySection
                 key={catKey}
                 cat={cat}
+                macro={macro}
                 subs={subs}
                 expanded={!!expandedCats[catKey]}
                 onToggle={() => onToggleCat(catKey)}
@@ -223,6 +226,8 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
                 onAddHere={() => onAddHere(macro, cat)}
                 onHideChange={onHideChange}
                 onRename={onRename}
+                onMove={onMove}
+                hierarchy={hierarchy}
               />
             )
           })}
@@ -242,22 +247,64 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
 // Category accordion section
 // ---------------------------------------------------------------------------
 
-function CategorySection({ cat, subs, expanded, onToggle, onKeywordChange, onAddHere, onHideChange, onRename }) {
+function CategorySection({ cat, macro, subs, expanded, onToggle, onKeywordChange, onAddHere, onHideChange, onRename, onMove, hierarchy }) {
+  const [movingCat, setMovingCat] = useState(false)
+  const [targetMacro, setTargetMacro] = useState('')
+  const [moveError, setMoveError] = useState('')
+  const allMacros = Object.keys(hierarchy).filter(m => m !== macro)
+
+  const handleMoveCategory = async () => {
+    if (!targetMacro) return
+    setMoveError('')
+    try {
+      await moveCategoryToMacro(cat, macro, targetMacro)
+      setMovingCat(false)
+      onMove()
+    } catch (e) {
+      try { setMoveError(JSON.parse(e.message).detail) } catch { setMoveError(e.message) }
+    }
+  }
+
   return (
     <div style={{ borderRadius: 8, border: '1px solid #e9ebf0', background: '#fff' }}>
-      <button
-        onClick={onToggle}
-        style={{
-          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer',
-          fontWeight: 600, fontSize: 14,
-        }}
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{expanded ? '▾' : '▸'} <InlineEdit value={cat} onSave={newName => renameCategory(cat, newName).then(onRename)} /></span>
-        <span style={{ fontSize: 12, fontWeight: 400, color: '#888' }}>
-          {subs.length} sub-{subs.length === 1 ? 'category' : 'categories'}
-        </span>
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button
+          onClick={onToggle}
+          style={{
+            flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer',
+            fontWeight: 600, fontSize: 14,
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{expanded ? '▾' : '▸'} <InlineEdit value={cat} onSave={newName => renameCategory(cat, newName).then(onRename)} /></span>
+          <span style={{ fontSize: 12, fontWeight: 400, color: '#888' }}>
+            {subs.length} sub-{subs.length === 1 ? 'category' : 'categories'}
+          </span>
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); setMovingCat(v => !v); setTargetMacro(''); setMoveError('') }}
+          title="Move to different macro-category"
+          className="edit-pencil"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ca3af', padding: '0 12px' }}
+        >⇄</button>
+      </div>
+
+      {movingCat && (
+        <div style={{ padding: '8px 14px 10px', borderTop: '1px solid #f3f4f6', background: '#fafafa', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#555' }}>Move <strong>{cat}</strong> to:</span>
+          <select
+            value={targetMacro}
+            onChange={e => setTargetMacro(e.target.value)}
+            style={{ padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+          >
+            <option value="">— select macro —</option>
+            {allMacros.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <button onClick={handleMoveCategory} disabled={!targetMacro} style={smallBtn('#6366f1')}>Move</button>
+          <button onClick={() => setMovingCat(false)} style={smallBtn('#9ca3af')}>Cancel</button>
+          {moveError && <span style={{ fontSize: 11, color: '#ef4444' }}>{moveError}</span>}
+        </div>
+      )}
 
       {expanded && (
         <div style={{ borderTop: '1px solid #f3f4f6' }}>
@@ -267,6 +314,8 @@ function CategorySection({ cat, subs, expanded, onToggle, onKeywordChange, onAdd
               sub={sub}
               onKeywordChange={onKeywordChange}
               onHideChange={onHideChange}
+              onMove={onMove}
+              hierarchy={hierarchy}
             />
           ))}
           <div style={{ padding: '8px 16px 10px 28px' }}>
@@ -287,11 +336,33 @@ function CategorySection({ cat, subs, expanded, onToggle, onKeywordChange, onAdd
 // Sub-category row with keyword management
 // ---------------------------------------------------------------------------
 
-function SubCategoryRow({ sub, onKeywordChange, onHideChange }) {
+function SubCategoryRow({ sub, onKeywordChange, onHideChange, onMove, hierarchy }) {
   const [adding, setAdding] = useState(false)
   const [newKw, setNewKw] = useState('')
   const [error, setError] = useState('')
+  const [movingSub, setMovingSub] = useState(false)
+  const [targetMacro, setTargetMacro] = useState('')
+  const [targetCat, setTargetCat] = useState('')
+  const [newCatName, setNewCatName] = useState('')
+  const [moveError, setMoveError] = useState('')
   const inputRef = useRef(null)
+
+  const allMacros = Object.keys(hierarchy)
+  const catsInMacro = targetMacro ? Object.keys(hierarchy[targetMacro] || {}) : []
+  const isNewCat = targetCat === '__new__'
+
+  const handleMoveSubCategory = async () => {
+    const finalCat = isNewCat ? newCatName.trim() : targetCat
+    if (!targetMacro || !finalCat) return
+    setMoveError('')
+    try {
+      await moveSubCategory(sub.id, finalCat, targetMacro)
+      setMovingSub(false)
+      onMove()
+    } catch (e) {
+      try { setMoveError(JSON.parse(e.message).detail) } catch { setMoveError(e.message) }
+    }
+  }
 
   const handleAdd = async () => {
     if (!newKw.trim()) return
@@ -324,10 +395,9 @@ function SubCategoryRow({ sub, onKeywordChange, onHideChange }) {
 
   return (
     <div className="sub-cat-row" style={{
-      padding: '10px 16px 10px 28px',
       borderBottom: '1px solid #f3f4f6',
-      display: 'flex', alignItems: 'flex-start', gap: 12,
     }}>
+      <div style={{ padding: '10px 16px 10px 28px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
       {/* Sub-category name + badges */}
       <div style={{ minWidth: 220 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -342,6 +412,12 @@ function SubCategoryRow({ sub, onKeywordChange, onHideChange }) {
           >
             {sub.hide_from_reports ? '🚫' : '👁'}
           </button>
+          <button
+            onClick={() => { setMovingSub(v => !v); setTargetMacro(''); setTargetCat(''); setNewCatName(''); setMoveError('') }}
+            title="Move to different category"
+            className="edit-pencil"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#9ca3af', padding: 0 }}
+          >⇄</button>
         </div>
         <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
           <ToggleBadge
@@ -408,6 +484,43 @@ function SubCategoryRow({ sub, onKeywordChange, onHideChange }) {
         )}
         {error && <span style={{ fontSize: 11, color: '#ef4444' }}>{error}</span>}
       </div>
+      </div>
+
+      {movingSub && (
+        <div style={{ padding: '8px 16px 10px 28px', background: '#fafafa', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#555' }}>Move <strong>{sub.sub_category}</strong> to:</span>
+          <select
+            value={targetMacro}
+            onChange={e => { setTargetMacro(e.target.value); setTargetCat('') }}
+            style={{ padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+          >
+            <option value="">— macro —</option>
+            {allMacros.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          {targetMacro && (
+            <select
+              value={targetCat}
+              onChange={e => setTargetCat(e.target.value)}
+              style={{ padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }}
+            >
+              <option value="">— category —</option>
+              {catsInMacro.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="__new__">+ New category name…</option>
+            </select>
+          )}
+          {isNewCat && (
+            <input
+              value={newCatName}
+              onChange={e => setNewCatName(e.target.value)}
+              placeholder="Category name"
+              style={{ padding: '3px 8px', border: '1px solid #6366f1', borderRadius: 4, fontSize: 12, width: 160 }}
+            />
+          )}
+          <button onClick={handleMoveSubCategory} disabled={!targetMacro || !targetCat || (isNewCat && !newCatName.trim())} style={smallBtn('#6366f1')}>Move</button>
+          <button onClick={() => setMovingSub(false)} style={smallBtn('#9ca3af')}>Cancel</button>
+          {moveError && <span style={{ fontSize: 11, color: '#ef4444' }}>{moveError}</span>}
+        </div>
+      )}
     </div>
   )
 }

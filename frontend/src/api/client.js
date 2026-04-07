@@ -267,6 +267,26 @@ export async function renameCategory(oldName, newName) {
   return res.json()
 }
 
+export async function moveSubCategory(id, newCategory, newMacro) {
+  const res = await fetch(`${BASE}/categories/${id}/move`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_category: newCategory, new_macro_category: newMacro }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function moveCategoryToMacro(category, oldMacro, newMacro) {
+  const res = await fetch(`${BASE}/categories/move-category`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, old_macro: oldMacro, new_macro: newMacro }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function renameMacro(oldName, newName) {
   const res = await fetch(`${BASE}/categories/rename-macro`, {
     method: 'PATCH',
