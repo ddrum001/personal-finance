@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded } from '../api/client'
+import { useState, useEffect } from 'react'
+import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail } from '../api/client'
 import PlaidLinkButton from './PlaidLink'
 
 function formatSyncTime(ts) {
@@ -26,12 +26,50 @@ function displayName(acct) {
 }
 
 export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSuccess }) {
-  const [editing, setEditing] = useState(null) // account_id being edited
+  const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(null) // item_id to confirm
-  const [syncingItem, setSyncingItem] = useState(null) // item_id being synced
-  const [syncResults, setSyncResults] = useState({}) // item_id → result string
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [syncingItem, setSyncingItem] = useState(null)
+  const [syncResults, setSyncResults] = useState({})
+  const [gmailStatus, setGmailStatus] = useState(null) // null=loading, {connected, gmail_address}
+  const [gmailConnecting, setGmailConnecting] = useState(false)
+  const [gmailError, setGmailError] = useState('')
+
+  // Load Gmail status + handle redirect-back from OAuth
+  useEffect(() => {
+    getGmailStatus().then(setGmailStatus).catch(() => setGmailStatus({ connected: false }))
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('gmail')) {
+      const val = params.get('gmail')
+      if (val === 'connected') getGmailStatus().then(setGmailStatus)
+      // Clean the URL
+      const clean = window.location.pathname
+      window.history.replaceState({}, '', clean)
+    }
+    if (params.has('gmail_error')) {
+      setGmailError(`Gmail connection failed: ${params.get('gmail_error')}`)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  const handleGmailConnect = async () => {
+    setGmailConnecting(true)
+    setGmailError('')
+    try {
+      const { auth_url } = await getGmailConnectUrl()
+      window.location.href = auth_url
+    } catch (e) {
+      setGmailError('Could not start Gmail connection.')
+      setGmailConnecting(false)
+    }
+  }
+
+  const handleGmailDisconnect = async () => {
+    await disconnectGmail()
+    setGmailStatus({ connected: false, gmail_address: null })
+  }
 
   const startEdit = (acct) => {
     setEditing(acct.account_id)
@@ -93,6 +131,52 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
           Import CSV
         </button>
         <PlaidLinkButton onSuccess={onPlaidSuccess} />
+      </div>
+
+      {/* Gmail Integration */}
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Gmail Integration</span>
+            <span style={{ marginLeft: 8, fontSize: 11, color: '#888' }}>Auto-categorize Amazon orders</span>
+          </div>
+          {gmailStatus?.connected && (
+            <span style={{ fontSize: 11, background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 10, padding: '2px 8px', fontWeight: 600 }}>
+              Connected
+            </span>
+          )}
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {gmailStatus === null ? (
+            <span style={{ fontSize: 13, color: '#aaa' }}>Loading…</span>
+          ) : gmailStatus.connected ? (
+            <>
+              <span style={{ fontSize: 13, color: '#555' }}>
+                Connected as <strong>{gmailStatus.gmail_address || 'Gmail account'}</strong>
+              </span>
+              <button
+                onClick={handleGmailDisconnect}
+                style={{ fontSize: 12, color: '#ef4444', background: 'none', border: '1px solid #fca5a5', borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}
+              >
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 13, color: '#555' }}>
+                Connect your Gmail account to pull Amazon order details for easier transaction categorization.
+              </span>
+              <button
+                onClick={handleGmailConnect}
+                disabled={gmailConnecting}
+                style={{ padding: '7px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: gmailConnecting ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: gmailConnecting ? 0.7 : 1, whiteSpace: 'nowrap' }}
+              >
+                {gmailConnecting ? 'Redirecting…' : 'Connect Gmail'}
+              </button>
+            </>
+          )}
+          {gmailError && <span style={{ fontSize: 12, color: '#ef4444' }}>{gmailError}</span>}
+        </div>
       </div>
       {sorted.map((item) => {
         const isManual = item.is_manual

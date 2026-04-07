@@ -346,6 +346,28 @@ export async function getImportFormats() {
 }
 
 // ---------------------------------------------------------------------------
+// Gmail / Amazon
+// ---------------------------------------------------------------------------
+
+export async function getGmailStatus() {
+  const res = await fetch(`${BASE}/gmail/status`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function getGmailConnectUrl() {
+  const res = await fetch(`${BASE}/gmail/connect`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function disconnectGmail() {
+  const res = await fetch(`${BASE}/gmail/disconnect`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+// ---------------------------------------------------------------------------
 // Cashflow
 // ---------------------------------------------------------------------------
 

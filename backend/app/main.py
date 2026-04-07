@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from .database import engine, SessionLocal
 from .models import Base
-from .routers import auth, cashflow, categories, import_csv, plaid, templates, transactions
+from .routers import auth, cashflow, categories, gmail, import_csv, plaid, templates, transactions
 from .seed_categories import seed_budget_categories
 
 load_dotenv()
@@ -69,7 +69,7 @@ _SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-me")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
     # Auth endpoints and health check are public
-    if path.startswith("/api/auth") or path == "/health":
+    if path.startswith("/api/auth") or path == "/health" or path == "/api/gmail/callback":
         return await call_next(request)
     token = request.cookies.get("session")
     if not token:
@@ -81,6 +81,7 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 app.include_router(auth.router, prefix="/api")
+app.include_router(gmail.router, prefix="/api")
 app.include_router(plaid.router, prefix="/api")
 app.include_router(transactions.router, prefix="/api")
 app.include_router(categories.router, prefix="/api")

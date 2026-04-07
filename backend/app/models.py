@@ -89,6 +89,18 @@ class CategoryKeyword(Base):
     keyword = Column(String, nullable=False)
 
 
+class GmailCredential(Base):
+    """Stores Gmail OAuth tokens for a user (keyed by login email)."""
+    __tablename__ = "gmail_credentials"
+
+    email = Column(String, primary_key=True)          # matches session JWT email
+    gmail_address = Column(String, nullable=True)     # actual Gmail address (may differ)
+    access_token = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=True)
+    token_expiry = Column(DateTime(timezone=True), nullable=True)
+    connected_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class MerchantSplitTemplate(Base):
     """Reusable percentage-based split templates keyed to a merchant name pattern."""
     __tablename__ = "merchant_split_templates"
