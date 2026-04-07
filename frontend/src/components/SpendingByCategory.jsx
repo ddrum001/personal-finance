@@ -16,7 +16,7 @@ const CustomTooltip = ({ active, payload }) => {
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px', fontSize: 13, boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{d.category}</div>
-      <div>${d.total.toFixed(2)}</div>
+      <div>${d.total.toFixed(2)} <span style={{ color: '#6366f1', fontWeight: 600 }}>({d.pct?.toFixed(1)}%)</span></div>
       <div style={{ color: '#888', marginTop: 2 }}>{d.count} transaction{d.count !== 1 ? 's' : ''}</div>
     </div>
   )
@@ -98,7 +98,11 @@ export default function SpendingByCategory({ startDate, endDate }) {
     setSelectedCategory(null)
   }
 
-  const displayData = showUncategorized ? data : data.filter(d => d.category !== 'Uncategorized')
+  const displayData = useMemo(() => {
+    const filtered = showUncategorized ? data : data.filter(d => d.category !== 'Uncategorized')
+    const grandTotal = filtered.reduce((s, d) => s + d.total, 0)
+    return filtered.map(d => ({ ...d, pct: grandTotal > 0 ? (d.total / grandTotal) * 100 : 0 }))
+  }, [data, showUncategorized])
   const chartHeight = Math.max(280, displayData.length * 38 + 60)
 
   const breadcrumbs = drillPath.length > 0
@@ -210,8 +214,12 @@ export default function SpendingByCategory({ startDate, endDate }) {
               <LabelList
                 dataKey="total"
                 position="right"
-                formatter={(v) => `$${v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)}`}
-                style={{ fontSize: 11, fill: '#555' }}
+                content={({ x, y, width, height, value, index }) => {
+                  const d = displayData[index]
+                  if (!d) return null
+                  const label = `$${value >= 1000 ? `${(value/1000).toFixed(1)}k` : value.toFixed(0)} · ${d.pct.toFixed(1)}%`
+                  return <text x={x + width + 6} y={y + height / 2 + 4} fontSize={11} fill="#555">{label}</text>
+                }}
               />
             </Bar>
           </BarChart>
