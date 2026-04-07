@@ -60,7 +60,7 @@ export async function deleteItem(itemId) {
   return res.json()
 }
 
-export async function getTransactions({ startDate, endDate, category, budgetSubCategory, accountId, needsReview, needsSplits, limit } = {}) {
+export async function getTransactions({ startDate, endDate, category, budgetSubCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)
   if (endDate) params.set('end_date', endDate)
@@ -70,6 +70,7 @@ export async function getTransactions({ startDate, endDate, category, budgetSubC
   if (needsReview != null) params.set('needs_review', needsReview)
   if (needsSplits != null) params.set('needs_splits', needsSplits)
   if (limit != null) params.set('limit', limit)
+  if (offset != null) params.set('offset', offset)
   const res = await fetch(`${BASE}/transactions/?${params}`)
   if (!res.ok) throw new Error(await res.text())
   return res.json()
