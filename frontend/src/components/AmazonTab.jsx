@@ -218,14 +218,15 @@ export default function AmazonTab() {
   const handleReparse = async () => {
     setReparsing(true)
     setReparseResult(null)
-    let totalUpdated = 0, totalFailed = 0
+    let totalUpdated = 0, totalFailed = 0, prevRemaining = Infinity
     try {
       while (true) {
         const result = await reparseAmazonOrders()
         totalUpdated += result.updated
         totalFailed += result.failed
         setReparseResult({ updated: totalUpdated, failed: totalFailed, remaining: result.remaining })
-        if (result.remaining === 0 || result.processed === 0 || result.updated === 0) break
+        if (result.remaining === 0 || result.processed === 0 || result.remaining >= prevRemaining) break
+        prevRemaining = result.remaining
       }
       const refreshed = await getAmazonOrders()
       setOrders(refreshed)
