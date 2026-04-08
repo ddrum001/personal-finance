@@ -133,8 +133,13 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
     # the product name that appears immediately before each marker.
     # Handles Amazon's newer email format where products are listed as plain text
     # followed by "Quantity: 1" (e.g. "Polaris Vac-Sweep 360... Quantity: 1").
+    # Truncate at "Grand Total" / "Order Total" so ad recommendations after the
+    # total line are never mistaken for purchased items.
     if not items:
         full_text = soup.get_text(" ", strip=True)
+        cutoff = re.search(r'(?:Grand Total|Order Total)\s*:', full_text, re.IGNORECASE)
+        if cutoff:
+            full_text = full_text[:cutoff.start()]
         # Capture: any text (10–150 chars, no $ or %) ending with optional "..." before Quantity
         qty_inline = re.compile(
             r'([A-Za-z][^$\n%]{9,149}?\.{0,3})\s+Quantity:\s*(\d+)',
