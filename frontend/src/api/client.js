@@ -395,6 +395,12 @@ export async function unlinkAmazonOrder(orderId) {
   return res.json()
 }
 
+export async function getAmazonOrderCandidates(orderId) {
+  const res = await fetch(`${BASE}/gmail/amazon/orders/${orderId}/candidates`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 // ---------------------------------------------------------------------------
 // Cashflow
 // ---------------------------------------------------------------------------

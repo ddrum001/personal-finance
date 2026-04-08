@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -494,3 +495,50 @@ def unlink_amazon_order(order_id: int, request: Request, db: Session = Depends(g
     order.match_type = None
     db.commit()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Candidate transactions for manual linking
+# ---------------------------------------------------------------------------
+
+@router.get("/amazon/orders/{order_id}/candidates")
+def get_order_candidates(order_id: int, request: Request, db: Session = Depends(get_db)):
+    """
+    Return Amazon transactions within ±14 days of the order date,
+    sorted by amount proximity to the order total.
+    """
+    _get_user_email(request)
+    order = db.get(AmazonOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+
+    if not order.order_date:
+        return []
+
+    window = timedelta(days=14)
+    candidates = db.query(Transaction).filter(
+        Transaction.date >= order.order_date - window,
+        Transaction.date <= order.order_date + window,
+        Transaction.amount > 0,
+        or_(
+            Transaction.merchant_name.ilike("%amazon%"),
+            Transaction.name.ilike("%amazon%"),
+        ),
+    ).all()
+
+    if order.order_total is not None:
+        candidates.sort(key=lambda t: abs(t.amount - order.order_total))
+    else:
+        candidates.sort(key=lambda t: t.date)
+
+    return [
+        {
+            "transaction_id": t.transaction_id,
+            "name": t.name,
+            "merchant_name": t.merchant_name,
+            "date": t.date.isoformat(),
+            "amount": t.amount,
+            "amount_diff": round(abs(t.amount - order.order_total), 2) if order.order_total is not None else None,
+        }
+        for t in candidates
+    ]
