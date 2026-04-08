@@ -526,6 +526,48 @@ def unlink_amazon_order(order_id: int, request: Request, db: Session = Depends(g
 
 
 # ---------------------------------------------------------------------------
+# Reparse existing orders (refresh items + subtotals from Gmail)
+# ---------------------------------------------------------------------------
+
+@router.post("/amazon/reparse")
+def reparse_amazon_orders(request: Request, db: Session = Depends(get_db)):
+    """
+    Re-fetch each stored order's Gmail message and re-parse items + subtotals.
+    Useful after improving the email parser to backfill existing orders.
+    """
+    email = _get_user_email(request)
+    cred = db.get(GmailCredential, email)
+    if not cred:
+        raise HTTPException(400, "Gmail not connected")
+
+    service = _build_gmail_service(cred, db)
+
+    orders = db.query(AmazonOrder).filter(AmazonOrder.gmail_message_id.isnot(None)).all()
+    updated = 0
+    failed = 0
+
+    for order in orders:
+        try:
+            msg = service.users().messages().get(
+                userId="me", id=order.gmail_message_id, format="full"
+            ).execute()
+            parsed = _parse_amazon_email(msg)
+            if not parsed:
+                failed += 1
+                continue
+            order.items = json.dumps(parsed.get("items", []))
+            order.subtotals = json.dumps(parsed.get("subtotals", {}))
+            if parsed.get("order_total") is not None:
+                order.order_total = parsed["order_total"]
+            updated += 1
+        except Exception:
+            failed += 1
+
+    db.commit()
+    return {"updated": updated, "failed": failed, "total": len(orders)}
+
+
+# ---------------------------------------------------------------------------
 # Candidate transactions for manual linking
 # ---------------------------------------------------------------------------
 

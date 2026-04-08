@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder } from '../api/client'
+import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, reparseAmazonOrders } from '../api/client'
 
 function OrderCard({ order, onLink, onUnlink }) {
   const sub = order.subtotals || {}
@@ -187,6 +187,8 @@ export default function AmazonTab() {
   const [loading, setLoading] = useState(true)
   const [linkingOrder, setLinkingOrder] = useState(null)
   const [showLinked, setShowLinked] = useState(false)
+  const [reparsing, setReparsing] = useState(false)
+  const [reparseResult, setReparseResult] = useState(null)
 
   useEffect(() => {
     getAmazonOrders()
@@ -201,6 +203,21 @@ export default function AmazonTab() {
     // Optimistically mark the order as linked (we don't have full txn data here,
     // so just reload to get the updated transaction details)
     getAmazonOrders().then(setOrders)
+  }
+
+  const handleReparse = async () => {
+    setReparsing(true)
+    setReparseResult(null)
+    try {
+      const result = await reparseAmazonOrders()
+      setReparseResult(result)
+      const refreshed = await getAmazonOrders()
+      setOrders(refreshed)
+    } catch (e) {
+      setReparseResult({ error: e.message })
+    } finally {
+      setReparsing(false)
+    }
   }
 
   const handleUnlink = async (order) => {
@@ -222,6 +239,25 @@ export default function AmazonTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Reparse toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={handleReparse}
+          disabled={reparsing}
+          style={{ padding: '6px 14px', background: '#fff', color: '#6366f1', border: '1px solid #c7d2fe', borderRadius: 6, cursor: reparsing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 12, opacity: reparsing ? 0.7 : 1 }}
+        >
+          {reparsing ? 'Reparsing…' : 'Reparse All Orders'}
+        </button>
+        {reparseResult && !reparseResult.error && (
+          <span style={{ fontSize: 12, color: '#15803d' }}>
+            {reparseResult.updated} updated · {reparseResult.failed} failed
+          </span>
+        )}
+        {reparseResult?.error && (
+          <span style={{ fontSize: 12, color: '#ef4444' }}>{reparseResult.error}</span>
+        )}
+      </div>
+
       {/* Unmatched */}
       {unlinked.length > 0 && (
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
