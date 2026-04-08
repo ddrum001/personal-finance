@@ -246,19 +246,16 @@ export default function AmazonTab() {
   const handleReparse = async (onlyMissing = true) => {
     setReparsing(true)
     setReparseResult(null)
-    let totalUpdated = 0, totalFailed = 0, prevRemaining = Infinity, totalProcessed = 0
+    let totalUpdated = 0, totalFailed = 0, prevRemaining = Infinity, offset = 0
     try {
       while (true) {
-        const result = await reparseAmazonOrders({ onlyMissing })
+        const result = await reparseAmazonOrders({ onlyMissing, offset })
         totalUpdated += result.updated
         totalFailed += result.failed
-        totalProcessed += result.processed
         setReparseResult({ updated: totalUpdated, failed: totalFailed, remaining: result.remaining })
-        // For force-reparse, stop when we've processed fewer than a full batch (done)
-        // For missing-only, stop when remaining stops decreasing
         if (result.processed === 0) break
         if (onlyMissing && result.remaining >= prevRemaining) break
-        if (!onlyMissing && result.processed < 30) break
+        offset += result.processed
         prevRemaining = result.remaining
       }
       const refreshed = await getAmazonOrders()

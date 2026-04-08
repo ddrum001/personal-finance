@@ -623,6 +623,7 @@ def reparse_amazon_orders(
     request: Request,
     db: Session = Depends(get_db),
     limit: int = 30,
+    offset: int = 0,
     only_missing: bool = True,
 ):
     """
@@ -640,7 +641,7 @@ def reparse_amazon_orders(
     query = db.query(AmazonOrder).filter(AmazonOrder.gmail_message_id.isnot(None))
     if only_missing:
         query = query.filter(AmazonOrder.order_total.is_(None))
-    orders = query.limit(limit).all()
+    orders = query.order_by(AmazonOrder.id).offset(offset).limit(limit).all()
 
     updated = 0
     failed = 0
