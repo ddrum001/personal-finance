@@ -7,6 +7,12 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const [editing, setEditing] = useState(null)
   const [newBudgetSubCategory, setNewBudgetSubCategory] = useState(null)
   const [splitting, setSplitting] = useState(null)
+  const [expandedAmazon, setExpandedAmazon] = useState(new Set())
+  const toggleAmazon = (id) => setExpandedAmazon(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
   const [selectedInstitution, setSelectedInstitution] = useState(null)
   const [selectedAccount, setSelectedAccount] = useState(null)
   const [markingAll, setMarkingAll] = useState(false)
@@ -332,6 +338,11 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       <div style={{ fontWeight: hasSplits ? 600 : undefined }}>{t.merchant_name || t.name}</div>
                       {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
                       {hasSplits && <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>SPLIT ({t.splits.length})</div>}
+                      {t.amazon_order && (
+                        <button onClick={() => toggleAmazon(t.transaction_id)} style={{ marginTop: 3, fontSize: 11, color: '#f97316', background: 'none', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 7px', cursor: 'pointer', fontWeight: 600 }}>
+                          📦 {t.amazon_order.items?.length > 0 ? `${t.amazon_order.items.length} item${t.amazon_order.items.length !== 1 ? 's' : ''}` : 'Amazon order'} {expandedAmazon.has(t.transaction_id) ? '▲' : '▼'}
+                        </button>
+                      )}
                       <AccountBadge t={t} />
                     </td>
                     <td style={{ color: t.amount > 0 ? '#ef4444' : '#10b981', verticalAlign: 'top' }}>
@@ -377,6 +388,14 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       <td />
                     </tr>
                   ))}
+                  {t.amazon_order && expandedAmazon.has(t.transaction_id) && (
+                    <tr key={`${t.transaction_id}-amazon`} style={{ background: '#fff7ed' }}>
+                      <td />
+                      <td colSpan={4} style={{ paddingBottom: 10, paddingRight: 12 }}>
+                        <AmazonOrderPanel order={t.amazon_order} />
+                      </td>
+                    </tr>
+                  )}
                 </>
               )
             })}
@@ -395,6 +414,11 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   <div className="txn-card-merchant">{t.merchant_name || t.name}</div>
                   {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
                   {hasSplits && <div className="txn-split-badge">SPLIT ({t.splits.length})</div>}
+                  {t.amazon_order && (
+                    <button onClick={() => toggleAmazon(t.transaction_id)} style={{ marginTop: 3, fontSize: 11, color: '#f97316', background: 'none', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 7px', cursor: 'pointer', fontWeight: 600 }}>
+                      📦 {t.amazon_order.items?.length > 0 ? `${t.amazon_order.items.length} item${t.amazon_order.items.length !== 1 ? 's' : ''}` : 'Amazon order'} {expandedAmazon.has(t.transaction_id) ? '▲' : '▼'}
+                    </button>
+                  )}
                 </div>
                 <span className="txn-card-amount" style={{ color: t.amount > 0 ? '#ef4444' : '#10b981' }}>
                   {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
@@ -423,6 +447,12 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       <span className="txn-split-amount">-${s.amount.toFixed(2)}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {t.amazon_order && expandedAmazon.has(t.transaction_id) && (
+                <div style={{ marginTop: 8 }}>
+                  <AmazonOrderPanel order={t.amazon_order} />
                 </div>
               )}
 
@@ -497,6 +527,44 @@ function SplitCategoryPill({ s }) {
       <span style={{ background: '#fde68a', color: '#92400e', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
         {s.budget_sub_category || s.category}
       </span>
+    </div>
+  )
+}
+
+function AmazonOrderPanel({ order }) {
+  const sub = order.subtotals || {}
+  const hasSubtotals = sub.item_subtotal != null || sub.shipping != null || sub.tax != null
+  return (
+    <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 6, padding: '10px 12px', fontSize: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+        {order.order_total != null && (
+          <span style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>${order.order_total.toFixed(2)}</span>
+        )}
+        {hasSubtotals && (
+          <span style={{ color: '#888' }}>
+            {sub.item_subtotal != null && `items $${sub.item_subtotal.toFixed(2)}`}
+            {sub.shipping != null && ` · shipping $${sub.shipping.toFixed(2)}`}
+            {sub.tax != null && ` · tax $${sub.tax.toFixed(2)}`}
+          </span>
+        )}
+        <span style={{ color: '#bbb', fontFamily: 'monospace', marginLeft: 4 }}>#{order.order_id}</span>
+        {order.gmail_message_id && (
+          <a
+            href={`https://mail.google.com/mail/u/0/#all/${order.gmail_message_id}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{ color: '#6366f1', textDecoration: 'none', marginLeft: 4 }}
+          >
+            view email ↗
+          </a>
+        )}
+      </div>
+      {order.items?.length > 0 && (
+        <div style={{ color: '#555', lineHeight: '1.6' }}>
+          {order.items.map((item, i) => (
+            <div key={i}>· {item.description}{item.quantity > 1 ? ` (×${item.quantity})` : ''}</div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

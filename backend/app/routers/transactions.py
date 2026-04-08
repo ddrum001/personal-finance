@@ -5,8 +5,10 @@ from typing import Optional
 from datetime import date
 
 from pydantic import BaseModel
+import json
+
 from ..database import get_db
-from ..models import Transaction, TransactionSplit, BudgetCategory, Account, PlaidItem, MerchantSplitTemplate
+from ..models import AmazonOrder, Transaction, TransactionSplit, BudgetCategory, Account, PlaidItem, MerchantSplitTemplate
 from ..schemas import TransactionOut, CategoryUpdate, SplitRequest, SplitOut
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -68,12 +70,18 @@ def list_transactions(
     cat_map = {c.sub_category: c for c in db.query(BudgetCategory).all()}
     acct_map = {a.account_id: a for a in db.query(Account).all()}
     item_map = {i.item_id: i for i in db.query(PlaidItem).all()}
+    txn_ids = [t.transaction_id for t in txns]
+    amazon_map = {
+        o.transaction_id: o
+        for o in db.query(AmazonOrder).filter(AmazonOrder.transaction_id.in_(txn_ids)).all()
+    } if txn_ids else {}
 
     result = []
     for t in txns:
         bc = cat_map.get(t.budget_sub_category)
         acct = acct_map.get(t.account_id)
         item = item_map.get(t.item_id)
+        ao = amazon_map.get(t.transaction_id)
         splits = []
         for s in t.splits:
             sbc = cat_map.get(s.budget_sub_category or s.category)
@@ -110,6 +118,15 @@ def list_transactions(
             "account_subtype": acct.subtype if acct else None,
             "institution_name": t.institution_name or (item.institution_name if item else None),
             "needs_review": t.needs_review or False,
+            "amazon_order": {
+                "id": ao.id,
+                "order_id": ao.order_id,
+                "order_date": ao.order_date.isoformat() if ao.order_date else None,
+                "order_total": ao.order_total,
+                "subtotals": json.loads(ao.subtotals) if ao.subtotals else {},
+                "items": json.loads(ao.items) if ao.items else [],
+                "gmail_message_id": ao.gmail_message_id,
+            } if ao else None,
         })
     return result
 
