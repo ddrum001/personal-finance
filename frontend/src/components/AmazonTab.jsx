@@ -243,17 +243,22 @@ export default function AmazonTab() {
     }
   }
 
-  const handleReparse = async () => {
+  const handleReparse = async (onlyMissing = true) => {
     setReparsing(true)
     setReparseResult(null)
-    let totalUpdated = 0, totalFailed = 0, prevRemaining = Infinity
+    let totalUpdated = 0, totalFailed = 0, prevRemaining = Infinity, totalProcessed = 0
     try {
       while (true) {
-        const result = await reparseAmazonOrders()
+        const result = await reparseAmazonOrders({ onlyMissing })
         totalUpdated += result.updated
         totalFailed += result.failed
+        totalProcessed += result.processed
         setReparseResult({ updated: totalUpdated, failed: totalFailed, remaining: result.remaining })
-        if (result.remaining === 0 || result.processed === 0 || result.remaining >= prevRemaining) break
+        // For force-reparse, stop when we've processed fewer than a full batch (done)
+        // For missing-only, stop when remaining stops decreasing
+        if (result.processed === 0) break
+        if (onlyMissing && result.remaining >= prevRemaining) break
+        if (!onlyMissing && result.processed < 30) break
         prevRemaining = result.remaining
       }
       const refreshed = await getAmazonOrders()
@@ -314,13 +319,21 @@ export default function AmazonTab() {
       </div>
 
       {/* Reparse toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
-          onClick={handleReparse}
+          onClick={() => handleReparse(true)}
           disabled={reparsing}
           style={{ padding: '6px 14px', background: '#fff', color: '#6366f1', border: '1px solid #c7d2fe', borderRadius: 6, cursor: reparsing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 12, opacity: reparsing ? 0.7 : 1 }}
         >
-          {reparsing ? 'Reparsing…' : 'Reparse All Orders'}
+          {reparsing ? 'Reparsing…' : 'Reparse Missing'}
+        </button>
+        <button
+          onClick={() => handleReparse(false)}
+          disabled={reparsing}
+          style={{ padding: '6px 14px', background: '#fff', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: 6, cursor: reparsing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 12, opacity: reparsing ? 0.7 : 1 }}
+          title="Re-fetches all emails — use to apply parser fixes to already-parsed orders"
+        >
+          {reparsing ? 'Reparsing…' : 'Reparse All'}
         </button>
         {reparseResult && !reparseResult.error && (
           <span style={{ fontSize: 12, color: reparsing ? '#6366f1' : '#15803d' }}>

@@ -642,11 +642,6 @@ def reparse_amazon_orders(
         query = query.filter(AmazonOrder.order_total.is_(None))
     orders = query.limit(limit).all()
 
-    total_remaining = db.query(AmazonOrder).filter(
-        AmazonOrder.gmail_message_id.isnot(None),
-        AmazonOrder.order_total.is_(None),
-    ).count()
-
     updated = 0
     failed = 0
 
@@ -668,11 +663,11 @@ def reparse_amazon_orders(
             failed += 1
 
     db.commit()
-    remaining_after = db.query(AmazonOrder).filter(
+    remaining = db.query(AmazonOrder).filter(
         AmazonOrder.gmail_message_id.isnot(None),
         AmazonOrder.order_total.is_(None),
     ).count()
-    return {"updated": updated, "failed": failed, "processed": len(orders), "remaining": remaining_after}
+    return {"updated": updated, "failed": failed, "processed": len(orders), "remaining": remaining}
 
 
 # ---------------------------------------------------------------------------

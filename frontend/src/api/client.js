@@ -413,8 +413,8 @@ export async function restoreAmazonOrder(orderId) {
   return res.json()
 }
 
-export async function reparseAmazonOrders() {
-  const res = await fetch(`${BASE}/gmail/amazon/reparse`, { method: 'POST' })
+export async function reparseAmazonOrders({ onlyMissing = true } = {}) {
+  const res = await fetch(`${BASE}/gmail/amazon/reparse?only_missing=${onlyMissing}`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
