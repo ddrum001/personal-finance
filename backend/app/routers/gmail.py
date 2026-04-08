@@ -477,6 +477,7 @@ def list_amazon_orders(request: Request, db: Session = Depends(get_db)):
             "order_total": o.order_total,
             "subtotals": json.loads(o.subtotals) if o.subtotals else {},
             "items": json.loads(o.items) if o.items else [],
+            "gmail_message_id": o.gmail_message_id,
             "match_type": o.match_type,
             "suggested_category": o.suggested_category,
             "transaction": {

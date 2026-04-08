@@ -17,6 +17,16 @@ function OrderCard({ order, onLink, onUnlink }) {
             <span style={{ fontSize: 11, color: '#bbb', fontFamily: 'monospace' }}>
               #{order.order_id}
             </span>
+            {order.gmail_message_id && (
+              <a
+                href={`https://mail.google.com/mail/u/0/#all/${order.gmail_message_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 11, color: '#6366f1', textDecoration: 'none' }}
+              >
+                view email ↗
+              </a>
+            )}
           </div>
 
           {/* Grand Total + subtotals */}
