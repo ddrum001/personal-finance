@@ -395,6 +395,12 @@ export async function unlinkAmazonOrder(orderId) {
   return res.json()
 }
 
+export async function automatchAmazonOrders() {
+  const res = await fetch(`${BASE}/gmail/amazon/automatch`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function dismissAmazonOrder(orderId) {
   const res = await fetch(`${BASE}/gmail/amazon/orders/${orderId}/dismiss`, { method: 'PATCH' })
   if (!res.ok) throw new Error(await res.text())

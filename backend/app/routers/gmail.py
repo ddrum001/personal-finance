@@ -239,27 +239,26 @@ def _parse_amazon_email(msg: dict) -> dict | None:
 
 def _try_auto_match(order: AmazonOrder, db: Session):
     """
-    Try to find exactly one Amazon transaction that matches this order by amount + date.
-    Only sets the link if the match is unambiguous (exactly one candidate).
+    Try to find exactly one Amazon transaction that is an exact amount match within 14 days.
+    Only links if the match is unambiguous (exactly one candidate within $0.01).
     """
     if not order.order_total or not order.order_date:
         return
 
-    window = timedelta(days=5)
+    window = timedelta(days=14)
     candidates = db.query(Transaction).filter(
         Transaction.date >= order.order_date - window,
         Transaction.date <= order.order_date + window,
-        Transaction.amount >= order.order_total - 0.05,
-        Transaction.amount <= order.order_total + 0.05,
+        Transaction.amount >= order.order_total - 0.01,
+        Transaction.amount <= order.order_total + 0.01,
+        or_(
+            Transaction.merchant_name.ilike("%amazon%"),
+            Transaction.name.ilike("%amazon%"),
+        ),
     ).all()
 
-    amazon_candidates = [
-        t for t in candidates
-        if "amazon" in (t.merchant_name or "").lower() or "amazon" in (t.name or "").lower()
-    ]
-
-    if len(amazon_candidates) == 1:
-        order.transaction_id = amazon_candidates[0].transaction_id
+    if len(candidates) == 1:
+        order.transaction_id = candidates[0].transaction_id
         order.match_type = "auto"
 
 
@@ -584,6 +583,35 @@ def debug_amazon_order(order_id: int, request: Request, db: Session = Depends(ge
     soup = BeautifulSoup(html, "lxml")
     text = soup.get_text(" ", strip=True)
     return {"text_sample": text[:5000], "text_length": len(text)}
+
+
+# ---------------------------------------------------------------------------
+# Auto-match unlinked orders to exact-amount transactions
+# ---------------------------------------------------------------------------
+
+@router.post("/amazon/automatch")
+def automatch_amazon_orders(request: Request, db: Session = Depends(get_db)):
+    """
+    Run auto-matching on all unlinked, non-dismissed orders that have a known total.
+    Links orders where exactly one Amazon transaction matches within $0.01 and 14 days.
+    """
+    _get_user_email(request)
+
+    unlinked = db.query(AmazonOrder).filter(
+        AmazonOrder.transaction_id.is_(None),
+        AmazonOrder.dismissed == False,
+        AmazonOrder.order_total.isnot(None),
+        AmazonOrder.order_date.isnot(None),
+    ).all()
+
+    linked = 0
+    for order in unlinked:
+        _try_auto_match(order, db)
+        if order.transaction_id:
+            linked += 1
+
+    db.commit()
+    return {"linked": linked, "checked": len(unlinked)}
 
 
 # ---------------------------------------------------------------------------

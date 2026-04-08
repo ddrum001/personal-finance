@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion } from '../api/client'
+import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder } from '../api/client'
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
@@ -13,6 +13,12 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     next.has(id) ? next.delete(id) : next.add(id)
     return next
   })
+
+  const handleAmazonUnlink = async (txnId, orderId) => {
+    await unlinkAmazonOrder(orderId)
+    setExpandedAmazon(prev => { const n = new Set(prev); n.delete(txnId); return n })
+    onUpdated?.()
+  }
   const [selectedInstitution, setSelectedInstitution] = useState(null)
   const [selectedAccount, setSelectedAccount] = useState(null)
   const [markingAll, setMarkingAll] = useState(false)
@@ -392,7 +398,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                     <tr key={`${t.transaction_id}-amazon`} style={{ background: '#fff7ed' }}>
                       <td />
                       <td colSpan={4} style={{ paddingBottom: 10, paddingRight: 12 }}>
-                        <AmazonOrderPanel order={t.amazon_order} />
+                        <AmazonOrderPanel order={t.amazon_order} onUnlink={() => handleAmazonUnlink(t.transaction_id, t.amazon_order.id)} />
                       </td>
                     </tr>
                   )}
@@ -531,7 +537,7 @@ function SplitCategoryPill({ s }) {
   )
 }
 
-function AmazonOrderPanel({ order }) {
+function AmazonOrderPanel({ order, onUnlink }) {
   const sub = order.subtotals || {}
   const hasSubtotals = sub.item_subtotal != null || sub.shipping != null || sub.tax != null
   return (
@@ -556,6 +562,14 @@ function AmazonOrderPanel({ order }) {
           >
             view email ↗
           </a>
+        )}
+        {onUnlink && (
+          <button
+            onClick={onUnlink}
+            style={{ marginLeft: 'auto', fontSize: 11, color: '#9ca3af', background: 'none', border: '1px solid #e5e7eb', borderRadius: 4, padding: '1px 8px', cursor: 'pointer' }}
+          >
+            Unlink
+          </button>
         )}
       </div>
       {order.items?.length > 0 && (

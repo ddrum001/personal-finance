@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, dismissAmazonOrder, restoreAmazonOrder, reparseAmazonOrders } from '../api/client'
+import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, dismissAmazonOrder, restoreAmazonOrder, automatchAmazonOrders, reparseAmazonOrders } from '../api/client'
 
 function OrderCard({ order, onLink, onUnlink, onDismiss, onRestore }) {
   const sub = order.subtotals || {}
@@ -207,6 +207,8 @@ export default function AmazonTab() {
   const [linkingOrder, setLinkingOrder] = useState(null)
   const [showLinked, setShowLinked] = useState(false)
   const [showDismissed, setShowDismissed] = useState(false)
+  const [autoMatching, setAutoMatching] = useState(false)
+  const [autoMatchResult, setAutoMatchResult] = useState(null)
   const [reparsing, setReparsing] = useState(false)
   const [reparseResult, setReparseResult] = useState(null)
 
@@ -224,6 +226,21 @@ export default function AmazonTab() {
     // Optimistically mark the order as linked (we don't have full txn data here,
     // so just reload to get the updated transaction details)
     getAmazonOrders().then(setOrders)
+  }
+
+  const handleAutoMatch = async () => {
+    setAutoMatching(true)
+    setAutoMatchResult(null)
+    try {
+      const result = await automatchAmazonOrders()
+      setAutoMatchResult(result)
+      const refreshed = await getAmazonOrders()
+      setOrders(refreshed)
+    } catch (e) {
+      setAutoMatchResult({ error: e.message })
+    } finally {
+      setAutoMatching(false)
+    }
   }
 
   const handleReparse = async () => {
@@ -277,6 +294,25 @@ export default function AmazonTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={handleAutoMatch}
+          disabled={autoMatching}
+          style={{ padding: '6px 14px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: autoMatching ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 12, opacity: autoMatching ? 0.7 : 1 }}
+        >
+          {autoMatching ? 'Matching…' : 'Auto-link Exact Matches'}
+        </button>
+        {autoMatchResult && !autoMatchResult.error && (
+          <span style={{ fontSize: 12, color: '#15803d' }}>
+            {autoMatchResult.linked} linked of {autoMatchResult.checked} checked
+          </span>
+        )}
+        {autoMatchResult?.error && (
+          <span style={{ fontSize: 12, color: '#ef4444' }}>{autoMatchResult.error}</span>
+        )}
+      </div>
+
       {/* Reparse toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
