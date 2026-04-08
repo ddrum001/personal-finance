@@ -527,6 +527,29 @@ def unlink_amazon_order(order_id: int, request: Request, db: Session = Depends(g
 
 
 # ---------------------------------------------------------------------------
+# Debug: show raw extracted text for a single order (dev use only)
+# ---------------------------------------------------------------------------
+
+@router.get("/amazon/orders/{order_id}/debug")
+def debug_amazon_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    _get_user_email(request)
+    order = db.get(AmazonOrder, order_id)
+    if not order or not order.gmail_message_id:
+        raise HTTPException(404, "Order or message not found")
+    cred = db.query(GmailCredential).first()
+    if not cred:
+        raise HTTPException(400, "Gmail not connected")
+    service = _build_gmail_service(cred, db)
+    msg = service.users().messages().get(userId="me", id=order.gmail_message_id, format="full").execute()
+    html = _extract_html_body(msg["payload"])
+    if not html:
+        return {"error": "no HTML body found"}
+    soup = BeautifulSoup(html, "lxml")
+    text = soup.get_text(" ", strip=True)
+    return {"text_sample": text[:5000], "text_length": len(text)}
+
+
+# ---------------------------------------------------------------------------
 # Reparse existing orders (refresh items + subtotals from Gmail)
 # ---------------------------------------------------------------------------
 
