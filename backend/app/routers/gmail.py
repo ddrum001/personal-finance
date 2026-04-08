@@ -99,10 +99,11 @@ def _extract_html_body(payload: dict) -> str | None:
 
 _ITEM_SKIP_PHRASES = {
     "amazon.com", "all rights", "privacy", "unsubscribe", "click here",
-    "your account", "order total", "shipping", "estimated", "copyright",
-    "gift", "tax", "subtotal", "payment", "address", "delivery",
+    "your account", "order total", "grand total", "shipping", "estimated",
+    "copyright", "gift", "tax", "subtotal", "payment", "address", "delivery",
     "view or", "manage order", "track package", "return", "customer service",
-    "help center", "contact us",
+    "help center", "contact us", "continue shopping", "arriving", "ordered",
+    "out for delivery", "thanks for your order", "deals",
 }
 
 
@@ -128,22 +129,27 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
             seen.add(text)
             items.append({"description": text, "quantity": 1})
 
-    # Strategy 2: look for explicit quantity markers ("Qty: N" or "1 of:") and capture
-    # the surrounding text as the product name.
+    # Strategy 2: scan the full plain text for "Quantity: N" markers and capture
+    # the product name that appears immediately before each marker.
+    # Handles Amazon's newer email format where products are listed as plain text
+    # followed by "Quantity: 1" (e.g. "Polaris Vac-Sweep 360... Quantity: 1").
     if not items:
-        qty_pattern = re.compile(r'(?:Qty|Quantity)[:\s]+(\d+)', re.IGNORECASE)
-        for tag in soup.find_all(string=qty_pattern):
-            parent = tag.parent
-            if parent:
-                block = parent.get_text(" ", strip=True)
-                qty_match = qty_pattern.search(block)
-                qty = int(qty_match.group(1)) if qty_match else 1
-                # Strip the qty fragment and nearby price to get the description
-                desc = qty_pattern.sub("", block).strip()
-                desc = re.sub(r'\$[\d,]+\.\d{2}', '', desc).strip()
-                if 10 < len(desc) < 300 and desc not in seen:
-                    seen.add(desc)
-                    items.append({"description": desc, "quantity": qty})
+        full_text = soup.get_text(" ", strip=True)
+        # Capture: any text (10–150 chars, no $ or %) ending with optional "..." before Quantity
+        qty_inline = re.compile(
+            r'([A-Za-z][^$\n%]{9,149}?\.{0,3})\s+Quantity:\s*(\d+)',
+            re.IGNORECASE,
+        )
+        for m in qty_inline.finditer(full_text):
+            desc = m.group(1).strip()
+            qty = int(m.group(2))
+            if (
+                10 < len(desc) < 200
+                and desc not in seen
+                and not any(p in desc.lower() for p in _ITEM_SKIP_PHRASES)
+            ):
+                seen.add(desc)
+                items.append({"description": desc, "quantity": qty})
 
     # Strategy 3: broad fallback — table cells with substantive text that don't look
     # like boilerplate. Only used if neither strategy above produced results.
@@ -183,9 +189,12 @@ def _parse_amazon_email(msg: dict) -> dict | None:
         return None
     order_id = order_match.group(0)
 
-    # Order total — find "Order Total" label and the dollar amount that follows it
+    # Order total — try "Grand Total" first (newer format), fall back to "Order Total"
     order_total = None
-    total_match = re.search(r'Order Total[^$]*\$\s*([\d,]+\.\d{2})', text, re.IGNORECASE)
+    total_match = re.search(
+        r'(?:Grand Total|Order Total)[^$\n]{0,30}\$\s*([\d,]+\.\d{2})',
+        text, re.IGNORECASE,
+    )
     if total_match:
         try:
             order_total = float(total_match.group(1).replace(",", ""))
@@ -207,7 +216,7 @@ def _parse_amazon_email(msg: dict) -> dict | None:
     v = _parse_amount(r'Items?\(?\)?\s*Subtotal[^$]*\$\s*([\d,]+\.\d{2})')
     if v is not None:
         subtotals["item_subtotal"] = v
-    v = _parse_amount(r'Shipping\s*(?:&amp;|&|and)\s*Handling[^$]*\$\s*([\d,]+\.\d{2})')
+    v = _parse_amount(r'Shipping\s*(?:&amp;|&amp;amp;|&|and)\s*Handling[^$]*\$\s*([\d,]+\.\d{2})')
     if v is not None:
         subtotals["shipping"] = v
     v = _parse_amount(r'Estimated\s*tax[^$]*\$\s*([\d,]+\.\d{2})')
