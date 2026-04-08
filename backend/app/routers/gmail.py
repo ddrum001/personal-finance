@@ -563,10 +563,16 @@ def debug_amazon_order(order_id: int, request: Request, db: Session = Depends(ge
 # ---------------------------------------------------------------------------
 
 @router.post("/amazon/reparse")
-def reparse_amazon_orders(request: Request, db: Session = Depends(get_db)):
+def reparse_amazon_orders(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = 30,
+    only_missing: bool = True,
+):
     """
-    Re-fetch each stored order's Gmail message and re-parse items + subtotals.
-    Useful after improving the email parser to backfill existing orders.
+    Re-fetch stored orders' Gmail messages and re-parse items + subtotals.
+    - limit: max orders to process per call (default 30, call repeatedly to do more)
+    - only_missing: when True (default), skip orders that already have order_total set
     """
     email = _get_user_email(request)
     cred = db.get(GmailCredential, email)
@@ -575,7 +581,16 @@ def reparse_amazon_orders(request: Request, db: Session = Depends(get_db)):
 
     service = _build_gmail_service(cred, db)
 
-    orders = db.query(AmazonOrder).filter(AmazonOrder.gmail_message_id.isnot(None)).all()
+    query = db.query(AmazonOrder).filter(AmazonOrder.gmail_message_id.isnot(None))
+    if only_missing:
+        query = query.filter(AmazonOrder.order_total.is_(None))
+    orders = query.limit(limit).all()
+
+    total_remaining = db.query(AmazonOrder).filter(
+        AmazonOrder.gmail_message_id.isnot(None),
+        AmazonOrder.order_total.is_(None),
+    ).count()
+
     updated = 0
     failed = 0
 
@@ -597,7 +612,11 @@ def reparse_amazon_orders(request: Request, db: Session = Depends(get_db)):
             failed += 1
 
     db.commit()
-    return {"updated": updated, "failed": failed, "total": len(orders)}
+    remaining_after = db.query(AmazonOrder).filter(
+        AmazonOrder.gmail_message_id.isnot(None),
+        AmazonOrder.order_total.is_(None),
+    ).count()
+    return {"updated": updated, "failed": failed, "processed": len(orders), "remaining": remaining_after}
 
 
 # ---------------------------------------------------------------------------

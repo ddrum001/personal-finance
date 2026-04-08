@@ -218,13 +218,19 @@ export default function AmazonTab() {
   const handleReparse = async () => {
     setReparsing(true)
     setReparseResult(null)
+    let totalUpdated = 0, totalFailed = 0
     try {
-      const result = await reparseAmazonOrders()
-      setReparseResult(result)
+      while (true) {
+        const result = await reparseAmazonOrders()
+        totalUpdated += result.updated
+        totalFailed += result.failed
+        setReparseResult({ updated: totalUpdated, failed: totalFailed, remaining: result.remaining })
+        if (result.remaining === 0 || result.processed === 0) break
+      }
       const refreshed = await getAmazonOrders()
       setOrders(refreshed)
     } catch (e) {
-      setReparseResult({ error: e.message })
+      setReparseResult(prev => ({ ...(prev || {}), error: e.message }))
     } finally {
       setReparsing(false)
     }
@@ -259,8 +265,9 @@ export default function AmazonTab() {
           {reparsing ? 'Reparsing…' : 'Reparse All Orders'}
         </button>
         {reparseResult && !reparseResult.error && (
-          <span style={{ fontSize: 12, color: '#15803d' }}>
+          <span style={{ fontSize: 12, color: reparsing ? '#6366f1' : '#15803d' }}>
             {reparseResult.updated} updated · {reparseResult.failed} failed
+            {reparsing && reparseResult.remaining > 0 && ` · ${reparseResult.remaining} remaining…`}
           </span>
         )}
         {reparseResult?.error && (
