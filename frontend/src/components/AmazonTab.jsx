@@ -225,7 +225,7 @@ export default function AmazonTab() {
         totalUpdated += result.updated
         totalFailed += result.failed
         setReparseResult({ updated: totalUpdated, failed: totalFailed, remaining: result.remaining })
-        if (result.remaining === 0 || result.processed === 0) break
+        if (result.remaining === 0 || result.processed === 0 || result.updated === 0) break
       }
       const refreshed = await getAmazonOrders()
       setOrders(refreshed)
@@ -267,7 +267,11 @@ export default function AmazonTab() {
         {reparseResult && !reparseResult.error && (
           <span style={{ fontSize: 12, color: reparsing ? '#6366f1' : '#15803d' }}>
             {reparseResult.updated} updated · {reparseResult.failed} failed
-            {reparsing && reparseResult.remaining > 0 && ` · ${reparseResult.remaining} remaining…`}
+            {reparsing && reparseResult.remaining > 0
+              ? ` · ${reparseResult.remaining} remaining…`
+              : reparseResult.remaining > 0
+              ? ` · ${reparseResult.remaining} couldn't be parsed`
+              : ' · done'}
           </span>
         )}
         {reparseResult?.error && (
