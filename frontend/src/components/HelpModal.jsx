@@ -52,6 +52,19 @@ export default function HelpModal({ onClose }) {
           </ul>
         </Section>
 
+        <Section title="Amazon order linking">
+          <p>Connect Gmail on the <b>Accounts</b> tab to pull in Amazon order confirmation emails. Only emails from <code>auto-confirm@amazon.com</code> are ever fetched. Once synced, go to the <b>Amazon</b> tab to link each order to its matching transaction.</p>
+          <p><b>Syncing orders:</b> Click <b>Sync Amazon Orders</b> on the Accounts tab. New orders are added; already-synced orders are skipped.</p>
+          <p><b>Linking an order to a transaction:</b> On the Amazon tab, unmatched orders have a <b>Link Transaction</b> button. This opens a list of nearby Amazon transactions sorted by closest dollar amount — pick the one that matches and click <b>Link</b>.</p>
+          <p><b>Once linked:</b> The transaction shows an orange <b>📦 Amazon order</b> badge on the Transactions tab. Click it to expand the order details (Grand Total, item list, link to the original email) — useful for deciding how to categorize or split the transaction.</p>
+          <p><b>Reparsing:</b> The <b>Reparse All Orders</b> button re-fetches every order's original email and re-runs the parser (useful after parser improvements). The result shows:</p>
+          <ul>
+            <li><b>updated</b> — emails successfully fetched and processed (items/subtotals written)</li>
+            <li><b>failed</b> — hard errors: Gmail API exceptions or emails with no HTML body / no order ID (almost always 0)</li>
+            <li><b>couldn't be parsed</b> — orders where no Grand Total dollar amount was found in the email (typically older email formats or shipping notifications that slipped through the sender filter)</li>
+          </ul>
+        </Section>
+
         <Section title="Cashflow">
           <p>The <b>Cashflow</b> tab lets you plan ahead by adding future income and expenses. Recurring entries (monthly, weekly, etc.) project forward automatically so you can see your expected balance over time.</p>
         </Section>
