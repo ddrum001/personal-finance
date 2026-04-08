@@ -9,6 +9,7 @@ import CategoriesTab from './components/CategoriesTab'
 import CashflowTab from './components/CashflowTab'
 import ImportCsvModal from './components/ImportCsvModal'
 import AccountsTab from './components/AccountsTab'
+import AmazonTab from './components/AmazonTab'
 import Login from './components/Login'
 import HelpModal from './components/HelpModal'
 
@@ -132,7 +133,7 @@ export default function App() {
 
 
       <nav className="nav-tabs">
-        {['dashboard', 'transactions', 'accounts', 'cashflow', 'categories'].map((t) => (
+        {['dashboard', 'transactions', 'accounts', 'amazon', 'cashflow', 'categories'].map((t) => (
           <button
             key={t}
             className="nav-tab"
@@ -148,7 +149,7 @@ export default function App() {
       </nav>
 
       {/* Date filter + review mode toggle */}
-      {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && (
+      {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && tab !== 'amazon' && (
         <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {!reviewMode && !splitQueueMode && <DateFilter filter={filter} onChange={setFilter} />}
           {!reviewMode && !splitQueueMode && <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>}
@@ -216,6 +217,13 @@ export default function App() {
         <section className="card">
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Linked Accounts</h2>
           <AccountsTab items={items} onRefresh={loadData} onImportCsv={() => setImporting(true)} onPlaidSuccess={loadData} />
+        </section>
+      )}
+
+      {tab === 'amazon' && (
+        <section className="card">
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Amazon Orders</h2>
+          <AmazonTab />
         </section>
       )}
 

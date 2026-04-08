@@ -98,6 +98,7 @@ class AmazonOrder(Base):
     order_date = Column(Date, nullable=True)
     order_total = Column(Float, nullable=True)
     items = Column(Text, nullable=True)                          # JSON: [{description, quantity}]
+    subtotals = Column(Text, nullable=True)                      # JSON: {item_subtotal, shipping, tax}
     gmail_message_id = Column(String, unique=True, nullable=True)
     transaction_id = Column(String, ForeignKey("transactions.transaction_id", ondelete="SET NULL"), nullable=True)
     match_type = Column(String, nullable=True)                   # 'auto' | 'manual'

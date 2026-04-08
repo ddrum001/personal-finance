@@ -97,6 +97,15 @@ def _extract_html_body(payload: dict) -> str | None:
     return None
 
 
+_ITEM_SKIP_PHRASES = {
+    "amazon.com", "all rights", "privacy", "unsubscribe", "click here",
+    "your account", "order total", "shipping", "estimated", "copyright",
+    "gift", "tax", "subtotal", "payment", "address", "delivery",
+    "view or", "manage order", "track package", "return", "customer service",
+    "help center", "contact us",
+}
+
+
 def _extract_items(soup: BeautifulSoup) -> list[dict]:
     """
     Extract purchased item descriptions from an Amazon order confirmation email.
@@ -105,15 +114,16 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
     items = []
     seen = set()
 
-    # Strategy 1: anchor tags pointing to amazon.com product pages with descriptive text.
-    # Amazon product names are typically wrapped in <a> tags linking to the product.
+    # Strategy 1: anchor tags pointing to amazon.com product detail pages (/dp/ or /gp/product/).
+    # Deliberately excludes /gp/css/, /gp/your-account/, etc. which are navigation links.
     for a in soup.find_all("a", href=True):
         href = a.get("href", "")
         text = a.get_text(" ", strip=True)
         if (
-            ("/dp/" in href or "/gp/product" in href or "amazon.com/gp/" in href)
+            ("/dp/" in href or "/gp/product/" in href)
             and 15 < len(text) < 300
             and text not in seen
+            and not any(p in text.lower() for p in _ITEM_SKIP_PHRASES)
         ):
             seen.add(text)
             items.append({"description": text, "quantity": 1})
@@ -138,17 +148,12 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
     # Strategy 3: broad fallback — table cells with substantive text that don't look
     # like boilerplate. Only used if neither strategy above produced results.
     if not items:
-        skip_phrases = {
-            "amazon.com", "all rights", "privacy", "unsubscribe", "click here",
-            "your account", "order total", "shipping", "estimated", "copyright",
-            "gift", "tax", "subtotal", "payment", "address", "delivery",
-        }
         for td in soup.find_all(["td", "div"]):
             text = td.get_text(" ", strip=True)
             lower = text.lower()
             if (
                 25 < len(text) < 250
-                and not any(p in lower for p in skip_phrases)
+                and not any(p in lower for p in _ITEM_SKIP_PHRASES)
                 and text not in seen
             ):
                 seen.add(text)
@@ -189,11 +194,32 @@ def _parse_amazon_email(msg: dict) -> dict | None:
 
     items = _extract_items(soup)
 
+    def _parse_amount(pattern: str) -> float | None:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            try:
+                return float(m.group(1).replace(",", ""))
+            except ValueError:
+                pass
+        return None
+
+    subtotals = {}
+    v = _parse_amount(r'Items?\(?\)?\s*Subtotal[^$]*\$\s*([\d,]+\.\d{2})')
+    if v is not None:
+        subtotals["item_subtotal"] = v
+    v = _parse_amount(r'Shipping\s*(?:&amp;|&|and)\s*Handling[^$]*\$\s*([\d,]+\.\d{2})')
+    if v is not None:
+        subtotals["shipping"] = v
+    v = _parse_amount(r'Estimated\s*tax[^$]*\$\s*([\d,]+\.\d{2})')
+    if v is not None:
+        subtotals["tax"] = v
+
     return {
         "order_id": order_id,
         "order_date": order_date,
         "order_total": order_total,
         "items": items,
+        "subtotals": subtotals,
     }
 
 
@@ -417,6 +443,7 @@ def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
             order_date=parsed.get("order_date"),
             order_total=parsed.get("order_total"),
             items=json.dumps(parsed.get("items", [])),
+            subtotals=json.dumps(parsed.get("subtotals", {})),
             gmail_message_id=msg_id,
         )
         db.add(order)
@@ -448,6 +475,7 @@ def list_amazon_orders(request: Request, db: Session = Depends(get_db)):
             "order_id": o.order_id,
             "order_date": o.order_date.isoformat() if o.order_date else None,
             "order_total": o.order_total,
+            "subtotals": json.loads(o.subtotals) if o.subtotals else {},
             "items": json.loads(o.items) if o.items else [],
             "match_type": o.match_type,
             "suggested_category": o.suggested_category,

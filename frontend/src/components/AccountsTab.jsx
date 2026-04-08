@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail, syncAmazonOrders, getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder } from '../api/client'
+import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail, syncAmazonOrders } from '../api/client'
 import PlaidLinkButton from './PlaidLink'
 
 function formatSyncTime(ts) {
@@ -37,11 +37,6 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
   const [gmailError, setGmailError] = useState('')
   const [amazonSyncing, setAmazonSyncing] = useState(false)
   const [amazonSyncResult, setAmazonSyncResult] = useState(null)
-  const [unlinkedOrders, setUnlinkedOrders] = useState([])
-  const [linkingOrder, setLinkingOrder] = useState(null)       // order being linked
-  const [candidates, setCandidates] = useState([])
-  const [candidatesLoading, setCandidatesLoading] = useState(false)
-  const [linkingTxn, setLinkingTxn] = useState(null)           // transaction_id being confirmed
 
   // Load Gmail status + handle redirect-back from OAuth
   useEffect(() => {
@@ -76,7 +71,6 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
   const handleGmailDisconnect = async () => {
     await disconnectGmail()
     setGmailStatus({ connected: false, gmail_address: null })
-    setUnlinkedOrders([])
   }
 
   const handleAmazonSync = async () => {
@@ -85,53 +79,11 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
     try {
       const result = await syncAmazonOrders()
       setAmazonSyncResult(result)
-      const orders = await getAmazonOrders()
-      setUnlinkedOrders(orders.filter(o => !o.transaction))
     } catch (e) {
       try { setAmazonSyncResult({ error: JSON.parse(e.message).detail }) }
       catch { setAmazonSyncResult({ error: e.message }) }
     } finally {
       setAmazonSyncing(false)
-    }
-  }
-
-  const loadUnlinkedOrders = async () => {
-    try {
-      const orders = await getAmazonOrders()
-      setUnlinkedOrders(orders.filter(o => !o.transaction))
-    } catch {}
-  }
-
-  useEffect(() => {
-    if (gmailStatus?.connected) loadUnlinkedOrders()
-  }, [gmailStatus?.connected])
-
-  const openLinkModal = async (order) => {
-    setLinkingOrder(order)
-    setCandidates([])
-    setCandidatesLoading(true)
-    try {
-      const results = await getAmazonOrderCandidates(order.id)
-      setCandidates(results)
-    } finally {
-      setCandidatesLoading(false)
-    }
-  }
-
-  const closeLinkModal = () => {
-    setLinkingOrder(null)
-    setCandidates([])
-    setLinkingTxn(null)
-  }
-
-  const confirmLink = async (transactionId) => {
-    setLinkingTxn(transactionId)
-    try {
-      await linkAmazonOrder(linkingOrder.id, transactionId)
-      setUnlinkedOrders(prev => prev.filter(o => o.id !== linkingOrder.id))
-      closeLinkModal()
-    } finally {
-      setLinkingTxn(null)
     }
   }
 
@@ -259,46 +211,6 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
         </div>
       </div>
 
-      {/* Unlinked Amazon orders */}
-      {unlinkedOrders.length > 0 && (
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', background: '#fffbeb', borderBottom: '1px solid #e5e7eb' }}>
-            <span style={{ fontWeight: 700, fontSize: 14 }}>Unmatched Amazon Orders</span>
-            <span style={{ marginLeft: 8, fontSize: 12, color: '#92400e' }}>
-              {unlinkedOrders.length} order{unlinkedOrders.length !== 1 ? 's' : ''} couldn't be auto-matched to a transaction
-            </span>
-          </div>
-          {unlinkedOrders.map(order => (
-            <div key={order.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                <div>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>#{order.order_id}</span>
-                  <span style={{ fontSize: 12, color: '#888', marginLeft: 10 }}>{order.order_date}</span>
-                  {order.order_total != null && (
-                    <span style={{ fontSize: 12, color: '#555', marginLeft: 10 }}>${order.order_total.toFixed(2)}</span>
-                  )}
-                  {order.items?.length > 0 && (
-                    <div style={{ marginTop: 4, fontSize: 12, color: '#666' }}>
-                      {order.items.slice(0, 3).map((item, i) => (
-                        <div key={i} style={{ marginLeft: 8 }}>· {item.description}</div>
-                      ))}
-                      {order.items.length > 3 && (
-                        <div style={{ marginLeft: 8, color: '#aaa' }}>+ {order.items.length - 3} more</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => openLinkModal(order)}
-                  style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
-                >
-                  Link Transaction
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
       {sorted.map((item) => {
         const isManual = item.is_manual
         return (
@@ -430,82 +342,6 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
           </div>
         )
       })}
-
-      {/* Amazon order link modal */}
-      {linkingOrder && (
-        <div className="modal-overlay" onClick={closeLinkModal}>
-          <div className="modal" style={{ maxWidth: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-            <div style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Link Transaction</h2>
-              <div style={{ fontSize: 12, color: '#555' }}>
-                <span style={{ fontWeight: 600 }}>#{linkingOrder.order_id}</span>
-                <span style={{ marginLeft: 10, color: '#888' }}>{linkingOrder.order_date}</span>
-                {linkingOrder.order_total != null && (
-                  <span style={{ marginLeft: 10, fontWeight: 600, color: '#111' }}>${linkingOrder.order_total.toFixed(2)}</span>
-                )}
-              </div>
-              {linkingOrder.items?.length > 0 && (
-                <div style={{ marginTop: 4, fontSize: 11, color: '#888' }}>
-                  {linkingOrder.items.slice(0, 2).map((item, i) => (
-                    <span key={i}>{i > 0 ? ' · ' : ''}{item.description}</span>
-                  ))}
-                  {linkingOrder.items.length > 2 && <span> · +{linkingOrder.items.length - 2} more</span>}
-                </div>
-              )}
-            </div>
-
-            <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
-              Amazon transactions within 14 days, sorted by closest amount:
-            </div>
-
-            <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: 6 }}>
-              {candidatesLoading ? (
-                <div style={{ padding: 16, textAlign: 'center', color: '#aaa', fontSize: 13 }}>Loading…</div>
-              ) : candidates.length === 0 ? (
-                <div style={{ padding: 16, textAlign: 'center', color: '#aaa', fontSize: 13 }}>
-                  No Amazon transactions found within 14 days of this order.
-                </div>
-              ) : (
-                candidates.map(txn => {
-                  const diff = txn.amount_diff
-                  const diffColor = diff == null ? '#aaa' : diff < 1 ? '#15803d' : diff < 10 ? '#b45309' : '#9ca3af'
-                  return (
-                    <div key={txn.transaction_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: '1px solid #f3f4f6' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {txn.merchant_name || txn.name}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{txn.date}</div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600 }}>${txn.amount.toFixed(2)}</div>
-                        {diff != null && (
-                          <div style={{ fontSize: 11, color: diffColor }}>
-                            {diff < 0.01 ? 'exact match' : `Δ $${diff.toFixed(2)}`}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => confirmLink(txn.transaction_id)}
-                        disabled={linkingTxn === txn.transaction_id}
-                        style={{ padding: '4px 12px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0, opacity: linkingTxn === txn.transaction_id ? 0.6 : 1 }}
-                      >
-                        {linkingTxn === txn.transaction_id ? '…' : 'Link'}
-                      </button>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-
-            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={closeLinkModal} style={{ padding: '7px 18px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete confirmation */}
       {confirmDelete && (() => {
