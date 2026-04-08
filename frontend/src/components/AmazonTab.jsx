@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, reparseAmazonOrders } from '../api/client'
+import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, dismissAmazonOrder, restoreAmazonOrder, reparseAmazonOrders } from '../api/client'
 
-function OrderCard({ order, onLink, onUnlink }) {
+function OrderCard({ order, onLink, onUnlink, onDismiss, onRestore }) {
   const sub = order.subtotals || {}
   const hasSubtotals = sub.item_subtotal != null || sub.shipping != null || sub.tax != null
 
@@ -71,14 +71,23 @@ function OrderCard({ order, onLink, onUnlink }) {
           )}
         </div>
 
-        {!order.transaction && (
-          <button
-            onClick={() => onLink(order)}
-            style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            Link Transaction
-          </button>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+          {!order.transaction && !order.dismissed && (
+            <button onClick={() => onLink(order)} style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>
+              Link Transaction
+            </button>
+          )}
+          {!order.transaction && !order.dismissed && onDismiss && (
+            <button onClick={() => onDismiss(order)} style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: '1px solid #e5e7eb', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Dismiss
+            </button>
+          )}
+          {order.dismissed && onRestore && (
+            <button onClick={() => onRestore(order)} style={{ fontSize: 11, color: '#6b7280', background: 'none', border: '1px solid #e5e7eb', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Restore
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -197,6 +206,7 @@ export default function AmazonTab() {
   const [loading, setLoading] = useState(true)
   const [linkingOrder, setLinkingOrder] = useState(null)
   const [showLinked, setShowLinked] = useState(false)
+  const [showDismissed, setShowDismissed] = useState(false)
   const [reparsing, setReparsing] = useState(false)
   const [reparseResult, setReparseResult] = useState(null)
 
@@ -206,8 +216,9 @@ export default function AmazonTab() {
       .finally(() => setLoading(false))
   }, [])
 
-  const unlinked = orders.filter(o => !o.transaction)
+  const unlinked = orders.filter(o => !o.transaction && !o.dismissed)
   const linked = orders.filter(o => o.transaction)
+  const dismissed = orders.filter(o => o.dismissed && !o.transaction)
 
   const handleLinked = (orderId, transactionId) => {
     // Optimistically mark the order as linked (we don't have full txn data here,
@@ -240,6 +251,16 @@ export default function AmazonTab() {
   const handleUnlink = async (order) => {
     await unlinkAmazonOrder(order.id)
     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, transaction: null, match_type: null } : o))
+  }
+
+  const handleDismiss = async (order) => {
+    await dismissAmazonOrder(order.id)
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, dismissed: true } : o))
+  }
+
+  const handleRestore = async (order) => {
+    await restoreAmazonOrder(order.id)
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, dismissed: false } : o))
   }
 
   if (loading) {
@@ -290,7 +311,7 @@ export default function AmazonTab() {
             </span>
           </div>
           {unlinked.map(order => (
-            <OrderCard key={order.id} order={order} onLink={setLinkingOrder} onUnlink={handleUnlink} />
+            <OrderCard key={order.id} order={order} onLink={setLinkingOrder} onUnlink={handleUnlink} onDismiss={handleDismiss} />
           ))}
         </div>
       )}
@@ -307,14 +328,31 @@ export default function AmazonTab() {
             <span style={{ marginLeft: 'auto', fontSize: 11, color: '#aaa' }}>{showLinked ? '▲ hide' : '▼ show'}</span>
           </div>
           {showLinked && linked.map(order => (
-            <OrderCard key={order.id} order={order} onLink={setLinkingOrder} onUnlink={handleUnlink} />
+            <OrderCard key={order.id} order={order} onLink={setLinkingOrder} onUnlink={handleUnlink} onDismiss={handleDismiss} />
           ))}
         </div>
       )}
 
-      {unlinked.length === 0 && (
+      {unlinked.length === 0 && dismissed.length === 0 && (
         <div style={{ textAlign: 'center', color: '#15803d', fontSize: 13, padding: '8px 0' }}>
           All orders are linked.
+        </div>
+      )}
+
+      {/* Dismissed */}
+      {dismissed.length > 0 && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+          <div
+            style={{ padding: '12px 16px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+            onClick={() => setShowDismissed(s => !s)}
+          >
+            <span style={{ fontWeight: 700, fontSize: 14, color: '#9ca3af' }}>Dismissed</span>
+            <span style={{ fontSize: 12, color: '#bbb' }}>{dismissed.length} order{dismissed.length !== 1 ? 's' : ''}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#bbb' }}>{showDismissed ? '▲ hide' : '▼ show'}</span>
+          </div>
+          {showDismissed && dismissed.map(order => (
+            <OrderCard key={order.id} order={order} onLink={setLinkingOrder} onUnlink={handleUnlink} onRestore={handleRestore} />
+          ))}
         </div>
       )}
 

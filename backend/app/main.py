@@ -30,6 +30,7 @@ _MIGRATIONS = [
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS is_excluded BOOLEAN DEFAULT FALSE",
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS institution_name VARCHAR",
     "ALTER TABLE amazon_orders ADD COLUMN IF NOT EXISTS subtotals TEXT",
+    "ALTER TABLE amazon_orders ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE",
 ]
 _SEEDS = [
     "UPDATE budget_categories SET hide_from_reports = TRUE WHERE macro_category = 'Financial Transactions'",

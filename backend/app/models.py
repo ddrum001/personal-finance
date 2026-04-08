@@ -103,6 +103,7 @@ class AmazonOrder(Base):
     transaction_id = Column(String, ForeignKey("transactions.transaction_id", ondelete="SET NULL"), nullable=True)
     match_type = Column(String, nullable=True)                   # 'auto' | 'manual'
     suggested_category = Column(String, nullable=True)
+    dismissed = Column(Boolean, default=False, nullable=False)
     synced_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

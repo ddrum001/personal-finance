@@ -492,6 +492,7 @@ def list_amazon_orders(request: Request, db: Session = Depends(get_db)):
             "subtotals": json.loads(o.subtotals) if o.subtotals else {},
             "items": json.loads(o.items) if o.items else [],
             "gmail_message_id": o.gmail_message_id,
+            "dismissed": o.dismissed or False,
             "match_type": o.match_type,
             "suggested_category": o.suggested_category,
             "transaction": {
@@ -526,6 +527,28 @@ def link_amazon_order(order_id: int, body: LinkBody, request: Request, db: Sessi
     _suggest_category(order, db)
     db.commit()
     return {"ok": True, "suggested_category": order.suggested_category}
+
+
+@router.patch("/amazon/orders/{order_id}/dismiss")
+def dismiss_amazon_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    _get_user_email(request)
+    order = db.get(AmazonOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    order.dismissed = True
+    db.commit()
+    return {"ok": True}
+
+
+@router.patch("/amazon/orders/{order_id}/restore")
+def restore_amazon_order(order_id: int, request: Request, db: Session = Depends(get_db)):
+    _get_user_email(request)
+    order = db.get(AmazonOrder, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    order.dismissed = False
+    db.commit()
+    return {"ok": True}
 
 
 @router.delete("/amazon/orders/{order_id}/link")
