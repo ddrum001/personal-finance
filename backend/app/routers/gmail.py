@@ -599,7 +599,7 @@ def automatch_amazon_orders(request: Request, db: Session = Depends(get_db)):
 
     unlinked = db.query(AmazonOrder).filter(
         AmazonOrder.transaction_id.is_(None),
-        AmazonOrder.dismissed == False,
+        AmazonOrder.dismissed.isnot(True),
         AmazonOrder.order_total.isnot(None),
         AmazonOrder.order_date.isnot(None),
     ).all()

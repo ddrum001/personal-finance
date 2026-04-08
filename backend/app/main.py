@@ -38,6 +38,7 @@ _SEEDS = [
     # Backfill institution_name from plaid_items for existing transactions
     # Using correlated subquery (works on both PostgreSQL and SQLite)
     "UPDATE transactions SET institution_name = (SELECT institution_name FROM plaid_items WHERE plaid_items.item_id = transactions.item_id) WHERE institution_name IS NULL",
+    "UPDATE amazon_orders SET dismissed = FALSE WHERE dismissed IS NULL",
 ]
 with engine.connect() as _conn:
     for _sql in _MIGRATIONS:
