@@ -239,26 +239,44 @@ def _parse_amazon_email(msg: dict) -> dict | None:
 
 def _try_auto_match(order: AmazonOrder, db: Session):
     """
-    Try to find exactly one Amazon transaction that is an exact amount match within 14 days.
-    Only links if the match is unambiguous (exactly one candidate within $0.01).
+    Try to find exactly one Amazon transaction that matches within 7 days.
+    Strategy 1: exact match within $0.001 — link if exactly 1 found.
+    Strategy 2: loose match within $0.01 — link only if exactly 1 found.
     """
     if not order.order_total or not order.order_date:
         return
 
-    window = timedelta(days=14)
-    candidates = db.query(Transaction).filter(
+    window = timedelta(days=7)
+    amazon_filter = or_(
+        Transaction.merchant_name.ilike("%amazon%"),
+        Transaction.name.ilike("%amazon%"),
+    )
+    date_filter = (
         Transaction.date >= order.order_date - window,
         Transaction.date <= order.order_date + window,
+    )
+
+    # Strategy 1: exact to the penny
+    exact = db.query(Transaction).filter(
+        *date_filter,
+        Transaction.amount >= order.order_total - 0.001,
+        Transaction.amount <= order.order_total + 0.001,
+        amazon_filter,
+    ).all()
+    if len(exact) == 1:
+        order.transaction_id = exact[0].transaction_id
+        order.match_type = "auto"
+        return
+
+    # Strategy 2: within $0.01, must be unambiguous
+    loose = db.query(Transaction).filter(
+        *date_filter,
         Transaction.amount >= order.order_total - 0.01,
         Transaction.amount <= order.order_total + 0.01,
-        or_(
-            Transaction.merchant_name.ilike("%amazon%"),
-            Transaction.name.ilike("%amazon%"),
-        ),
+        amazon_filter,
     ).all()
-
-    if len(candidates) == 1:
-        order.transaction_id = candidates[0].transaction_id
+    if len(loose) == 1:
+        order.transaction_id = loose[0].transaction_id
         order.match_type = "auto"
 
 
@@ -593,7 +611,8 @@ def debug_amazon_order(order_id: int, request: Request, db: Session = Depends(ge
 def automatch_amazon_orders(request: Request, db: Session = Depends(get_db)):
     """
     Run auto-matching on all unlinked, non-dismissed orders that have a known total.
-    Links orders where exactly one Amazon transaction matches within $0.01 and 14 days.
+    Links orders where exactly one Amazon transaction matches within 7 days:
+    prefers exact-to-the-penny match, falls back to $0.01 window if unambiguous.
     """
     _get_user_email(request)
 
