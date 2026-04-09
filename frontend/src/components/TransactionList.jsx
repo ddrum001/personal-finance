@@ -21,6 +21,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   }
   const [selectedInstitution, setSelectedInstitution] = useState(null)
   const [selectedAccount, setSelectedAccount] = useState(null)
+  const [amazonFilter, setAmazonFilter] = useState(null) // null | 'linked' | 'unlinked'
   const [markingAll, setMarkingAll] = useState(false)
   // Map of id → transaction snapshot for transactions reviewed this session
   // Keeps them visible in review mode so the undo button can be clicked
@@ -117,8 +118,10 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
   const visible = [
     ...withOverrides.filter((t) => {
-      if (selectedAccount) return t.account_id === selectedAccount
-      if (selectedInstitution) return t.institution_name === selectedInstitution
+      if (selectedAccount && t.account_id !== selectedAccount) return false
+      if (selectedInstitution && t.institution_name !== selectedInstitution) return false
+      if (amazonFilter === 'linked' && !t.amazon_order) return false
+      if (amazonFilter === 'unlinked' && t.amazon_order) return false
       return true
     }),
     ...recentlyReviewedRows,
@@ -187,6 +190,29 @@ export default function TransactionList({ transactions, onUpdated, categories, r
               ))}
             </div>
           )}
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 }}>
+            <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Amazon:</span>
+            {[
+              { value: null, label: 'All' },
+              { value: 'linked', label: '📦 Linked' },
+              { value: 'unlinked', label: 'Not linked' },
+            ].map(({ value, label }) => (
+              <button
+                key={String(value)}
+                onClick={() => setAmazonFilter(value)}
+                style={{
+                  padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
+                  cursor: 'pointer',
+                  background: amazonFilter === value ? '#f97316' : '#f9fafb',
+                  color: amazonFilter === value ? '#fff' : '#555',
+                  borderColor: amazonFilter === value ? '#f97316' : '#e5e7eb',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -225,7 +251,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
         {visible.length} transaction{visible.length !== 1 ? 's' : ''}
-        {(selectedInstitution || selectedAccount) ? ' (filtered)' : ''}
+        {(selectedInstitution || selectedAccount || amazonFilter) ? ' (filtered)' : ''}
       </div>
 
       {/* ── Group A: Suggested (review mode only) ── */}
