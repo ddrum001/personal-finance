@@ -265,8 +265,8 @@ def get_projection(
     today = date.today()
     end_date = today + timedelta(days=days)
 
-    # Starting balance = sum of all checking accounts with a stored balance
-    accounts = db.query(Account).all()
+    # Starting balance = sum of non-excluded checking accounts with a stored balance
+    accounts = db.query(Account).filter(Account.is_excluded == False).all()
     balance_accounts = []
     starting_balance = 0.0
     for acct in accounts:
