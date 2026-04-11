@@ -170,6 +170,143 @@ def create_update_link_token(item_id: str, db: Session = Depends(get_db)):
 # 2. Exchange Public Token  (frontend sends public_token after Link success)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 2c. Replace Item — fresh reconnect that migrates all account/transaction data
+# ---------------------------------------------------------------------------
+
+@router.post("/items/{item_id}/replace")
+def replace_item(item_id: str, body: ExchangeTokenRequest, db: Session = Depends(get_db)):
+    """Exchange a fresh public token to replace an existing item.
+
+    Migrates transactions, promo balances, and cashflow entries to the new
+    account_ids returned by Plaid, preserving all history.  Used when the
+    user needs to re-connect an institution to add a new product (liabilities).
+    """
+    from sqlalchemy import text
+
+    old_item = db.get(PlaidItem, item_id)
+    if not old_item:
+        raise HTTPException(404, "Item not found")
+
+    client = _plaid_client()
+
+    try:
+        resp = client.item_public_token_exchange(
+            ItemPublicTokenExchangeRequest(public_token=body.public_token)
+        )
+    except plaid.ApiException as e:
+        raise HTTPException(502, str(e.body))
+
+    new_item_id = resp["item_id"]
+    new_access_token = resp["access_token"]
+    institution_name = body.institution_name or old_item.institution_name
+
+    old_accounts = db.query(Account).filter(Account.item_id == item_id).all()
+
+    try:
+        accts_resp = client.accounts_get(AccountsGetRequest(access_token=new_access_token))
+    except plaid.ApiException as e:
+        raise HTTPException(502, str(e.body))
+
+    new_plaid_accounts = accts_resp["accounts"]
+
+    # Match new Plaid accounts to old DB accounts by mask + subtype
+    account_id_map: dict[str, dict] = {}   # old_id -> {new_id, name, ...}
+    unmatched_new = []
+    for new_acct in new_plaid_accounts:
+        new_id = new_acct["account_id"]
+        new_mask = new_acct.get("mask")
+        new_subtype = str(new_acct["subtype"]) if new_acct.get("subtype") else None
+        new_type = str(new_acct["type"]) if new_acct.get("type") else None
+
+        matched = None
+        if new_mask:
+            for old_acct in old_accounts:
+                if old_acct.mask == new_mask and old_acct.subtype == new_subtype:
+                    matched = old_acct
+                    break
+
+        if matched:
+            account_id_map[matched.account_id] = {
+                "new_id": new_id,
+                "name": new_acct["name"],
+                "official_name": new_acct.get("official_name"),
+                "type": new_type,
+                "subtype": new_subtype,
+            }
+        else:
+            unmatched_new.append(new_acct)
+
+    # Create the new PlaidItem first
+    db.merge(PlaidItem(
+        item_id=new_item_id,
+        access_token=new_access_token,
+        institution_name=institution_name,
+    ))
+    db.flush()
+
+    # Migrate each matched account: new Account row + update all references
+    for old_id, info in account_id_map.items():
+        new_id = info["new_id"]
+        old_acct = db.get(Account, old_id)
+
+        db.add(Account(
+            account_id=new_id,
+            item_id=new_item_id,
+            name=info["name"],
+            official_name=info["official_name"],
+            mask=old_acct.mask,
+            type=info["type"],
+            subtype=info["subtype"],
+            nickname=old_acct.nickname,
+            is_excluded=old_acct.is_excluded,
+            balance=old_acct.balance,
+            credit_limit=old_acct.credit_limit,
+            statement_balance=old_acct.statement_balance,
+            statement_due_date=old_acct.statement_due_date,
+            minimum_payment=old_acct.minimum_payment,
+            last_statement_date=old_acct.last_statement_date,
+            liabilities_updated_at=old_acct.liabilities_updated_at,
+        ))
+        db.flush()
+
+        db.execute(text("UPDATE transactions SET account_id=:n, item_id=:ni WHERE account_id=:o"),
+                   {"n": new_id, "ni": new_item_id, "o": old_id})
+        db.execute(text("UPDATE promo_balances SET account_id=:n WHERE account_id=:o"),
+                   {"n": new_id, "o": old_id})
+        db.execute(text("UPDATE cashflow_entries SET account_id=:n WHERE account_id=:o"),
+                   {"n": new_id, "o": old_id})
+
+        db.delete(old_acct)
+        db.flush()
+
+    # Add new accounts that had no match
+    for new_acct in unmatched_new:
+        new_type = str(new_acct["type"]) if new_acct.get("type") else None
+        new_subtype = str(new_acct["subtype"]) if new_acct.get("subtype") else None
+        db.merge(Account(
+            account_id=new_acct["account_id"],
+            item_id=new_item_id,
+            name=new_acct["name"],
+            official_name=new_acct.get("official_name"),
+            mask=new_acct.get("mask"),
+            type=new_type,
+            subtype=new_subtype,
+        ))
+
+    # Delete old PlaidItem (cascades to any remaining unmatched old accounts)
+    db.delete(old_item)
+    db.commit()
+
+    return {
+        "item_id": new_item_id,
+        "migrated_accounts": len(account_id_map),
+        "new_accounts": len(unmatched_new),
+    }
+
+
+
+
 @router.post("/link/token/exchange", response_model=ExchangeTokenResponse)
 def exchange_public_token(
     body: ExchangeTokenRequest,

@@ -16,17 +16,11 @@ export async function exchangePublicToken(publicToken, institutionName) {
   return res.json()
 }
 
-export async function createUpdateLinkToken(itemId) {
-  const res = await fetch(`${BASE}/plaid/link/token/update/${itemId}`, { method: 'POST' })
-  if (!res.ok) throw new Error(await res.text())
-  return res.json()
-}
-
-export async function completeItemUpdate(itemId, publicToken) {
-  const res = await fetch(`${BASE}/plaid/items/${itemId}/update-complete`, {
+export async function replaceItem(itemId, publicToken, institutionName) {
+  const res = await fetch(`${BASE}/plaid/items/${itemId}/replace`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ public_token: publicToken }),
+    body: JSON.stringify({ public_token: publicToken, institution_name: institutionName }),
   })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
