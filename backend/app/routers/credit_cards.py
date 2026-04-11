@@ -100,7 +100,8 @@ def list_credit_cards(db: Session = Depends(get_db)):
                 {
                     "id": p.id,
                     "description": p.description,
-                    "current_amount": p.current_amount,
+                    "promo_type": p.promo_type,
+                    "current_amount": acct.balance if p.promo_type == "purchases" else p.current_amount,
                     "promo_end_date": p.promo_end_date,
                     "notes": p.notes,
                     "days_remaining": (p.promo_end_date - today).days,
