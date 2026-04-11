@@ -27,8 +27,8 @@ const STATUS_STYLE = {
 // ---------------------------------------------------------------------------
 // Promo balance modal (add / edit)
 // ---------------------------------------------------------------------------
-function PromoModal({ promo, cards, onClose, onSave }) {
-  const [accountId, setAccountId] = useState(promo?.account_id ?? promo?._addForCard ?? cards[0]?.account_id ?? '')
+function PromoModal({ promo, defaultAccountId, cards, onClose, onSave }) {
+  const [accountId, setAccountId] = useState(promo?.account_id ?? defaultAccountId ?? cards[0]?.account_id ?? '')
   const [description, setDescription] = useState(promo?.description ?? '')
   const [amount, setAmount] = useState(promo ? String(promo.current_amount) : '')
   const [endDate, setEndDate] = useState(promo?.promo_end_date ?? '')
@@ -302,6 +302,7 @@ export default function CreditCardsTab() {
       {promoModal !== null && (
         <PromoModal
           promo={(promoModal === 'add' || promoModal?._addForCard) ? null : promoModal}
+          defaultAccountId={promoModal?._addForCard ?? null}
           cards={cards}
           onClose={() => setPromoModal(null)}
           onSave={handleSavePromo}
