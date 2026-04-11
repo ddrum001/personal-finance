@@ -22,7 +22,9 @@ export default function PlaidReconnectButton({ itemId, onSuccess }) {
   const onPlaidSuccess = useCallback(async (publicToken) => {
     try {
       setStatus('Updating…')
-      await completeItemUpdate(itemId, publicToken)
+      if (publicToken) {
+        await completeItemUpdate(itemId, publicToken)
+      }
       setStatus('Done!')
       setLinkToken(null)
       onSuccess?.()

@@ -148,6 +148,7 @@ def create_update_link_token(item_id: str, db: Session = Depends(get_db)):
     redirect_uri = os.getenv("PLAID_REDIRECT_URI", "").strip() or None
     kwargs = dict(
         access_token=item.access_token,
+        products=[Products("transactions"), Products("liabilities")],
         client_name="Cormond",
         country_codes=[CountryCode("US")],
         language="en",
