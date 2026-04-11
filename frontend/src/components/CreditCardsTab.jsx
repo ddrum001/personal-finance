@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  getCreditCards, refreshLiabilities,
+  getCreditCards, refreshLiabilities, refreshCardLiabilities,
   checkSchedulePayment, confirmSchedulePayment,
   createPromoBalance, updatePromoBalance, deletePromoBalance,
   planPromoPayments,
@@ -16,10 +16,11 @@ const fmtDate = (d) => {
 }
 
 const STATUS_STYLE = {
-  overdue:  { background: '#fef2f2', color: '#dc2626', label: 'Overdue' },
-  due_soon: { background: '#fef9c3', color: '#854d0e', label: 'Due soon' },
-  upcoming: { background: '#f0fdf4', color: '#15803d', label: 'Upcoming' },
-  unknown:  { background: '#f3f4f6', color: '#6b7280', label: 'No data' },
+  overdue:     { background: '#fef2f2', color: '#dc2626', label: 'Overdue' },
+  due_soon:    { background: '#fef9c3', color: '#854d0e', label: 'Due soon' },
+  upcoming:    { background: '#f0fdf4', color: '#15803d', label: 'Upcoming' },
+  no_due_date: { background: '#fef9c3', color: '#854d0e', label: 'No due date' },
+  unknown:     { background: '#f3f4f6', color: '#6b7280', label: 'No data' },
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +205,7 @@ export default function CreditCardsTab() {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshingCard, setRefreshingCard] = useState(null) // account_id being refreshed
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
 
@@ -235,6 +237,18 @@ export default function CreditCardsTab() {
     }
     catch (e) { setError(e.message) }
     finally { setRefreshing(false) }
+  }
+
+  const handleRefreshCard = async (accountId) => {
+    setRefreshingCard(accountId); setError(null)
+    try {
+      const result = await refreshCardLiabilities(accountId)
+      if (result.errors?.length) setError(result.errors.join(' | '))
+      else showToast('Updated')
+      await load()
+    }
+    catch (e) { setError(e.message) }
+    finally { setRefreshingCard(null) }
   }
 
   const handleSchedulePayment = async (accountId) => {
@@ -360,7 +374,7 @@ export default function CreditCardsTab() {
                 ? Math.round((card.balance / card.credit_limit) * 100)
                 : null
               const st = STATUS_STYLE[card.status] || STATUS_STYLE.unknown
-              const hasStatement = card.statement_balance != null && card.statement_due_date != null
+              const hasStatement = card.statement_balance != null
 
               return (
                 <div key={card.account_id} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', background: '#fff' }}>
@@ -396,22 +410,32 @@ export default function CreditCardsTab() {
                         {hasStatement ? (
                           <span>
                             Statement: <strong>{fmt(card.statement_balance)}</strong>
-                            {' · '}Due: <strong>{fmtDate(card.statement_due_date)}</strong>
+                            {card.statement_due_date && <span>{' · '}Due: <strong>{fmtDate(card.statement_due_date)}</strong></span>}
                             {card.minimum_payment != null && (
                               <span style={{ color: '#888' }}> · Min: {fmt(card.minimum_payment)}</span>
                             )}
                           </span>
                         ) : (
-                          <span style={{ color: '#aaa', fontStyle: 'italic' }}>No statement data — click Refresh Liabilities</span>
+                          <span style={{ color: '#aaa', fontStyle: 'italic' }}>No statement data — click refresh</span>
                         )}
                       </div>
                     </div>
 
-                    {/* Right: status + action */}
+                    {/* Right: status + actions */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                      <span style={{ background: st.background, color: st.color, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
-                        {st.label}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ background: st.background, color: st.color, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
+                          {st.label}
+                        </span>
+                        <button
+                          onClick={() => handleRefreshCard(card.account_id)}
+                          disabled={refreshingCard === card.account_id}
+                          title="Refresh this card's liabilities"
+                          style={{ padding: '3px 8px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 11, color: '#6366f1' }}
+                        >
+                          {refreshingCard === card.account_id ? '…' : '↻'}
+                        </button>
+                      </div>
                       {hasStatement && (
                         <button
                           onClick={() => handleSchedulePayment(card.account_id)}

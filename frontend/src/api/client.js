@@ -488,6 +488,12 @@ export async function refreshLiabilities() {
   return res.json()
 }
 
+export async function refreshCardLiabilities(accountId) {
+  const res = await fetch(`${BASE}/credit-cards/${accountId}/liabilities/refresh`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function checkSchedulePayment(accountId) {
   const res = await fetch(`${BASE}/credit-cards/${accountId}/schedule-payment`, {
     method: 'POST',

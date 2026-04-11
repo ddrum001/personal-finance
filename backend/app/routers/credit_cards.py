@@ -66,8 +66,11 @@ def list_credit_cards(db: Session = Depends(get_db)):
         )
         today = date.today()
         due = acct.statement_due_date
-        if due is None:
+        has_balance = acct.statement_balance is not None
+        if due is None and not has_balance:
             status = "unknown"
+        elif due is None:
+            status = "no_due_date"  # has balance but Plaid didn't return a due date
         elif due < today:
             status = "overdue"
         elif (due - today).days <= 7:
@@ -106,57 +109,79 @@ def list_credit_cards(db: Session = Depends(get_db)):
 # Refresh liabilities from Plaid
 # ---------------------------------------------------------------------------
 
+def _refresh_item_liabilities(item: PlaidItem, client, db: Session, now) -> tuple[int, list]:
+    """Refresh liabilities + balances for a single Plaid item. Returns (updated, errors)."""
+    updated = 0
+    errors = []
+
+    try:
+        resp = client.liabilities_get(
+            LiabilitiesGetRequest(access_token=item.access_token)
+        )
+        credit_list = resp["liabilities"]["credit"] or []
+        for cc in credit_list:
+            acct = db.get(Account, cc["account_id"])
+            if not acct:
+                continue
+            acct.statement_balance = cc["last_statement_balance"]
+            acct.statement_due_date = cc["next_payment_due_date"]
+            acct.minimum_payment = cc["minimum_payment_amount"]
+            acct.last_statement_date = cc["last_statement_issue_date"]
+            acct.liabilities_updated_at = now
+            updated += 1
+    except plaid.ApiException as e:
+        errors.append(f"Liabilities: {e.body}")
+    except Exception as e:
+        errors.append(f"Liabilities: {str(e)}")
+
+    try:
+        resp = client.accounts_balance_get(
+            AccountsBalanceGetRequest(access_token=item.access_token)
+        )
+        for acct_data in resp["accounts"]:
+            if str(acct_data["type"]) == "credit":
+                acct = db.get(Account, acct_data["account_id"])
+                if acct:
+                    balances = acct_data["balances"]
+                    acct.balance = balances["current"]
+                    acct.credit_limit = balances["limit"]
+    except plaid.ApiException as e:
+        errors.append(f"Balances: {e.body}")
+    except Exception as e:
+        errors.append(f"Balances: {str(e)}")
+
+    return updated, errors
+
+
+@router.post("/{account_id}/liabilities/refresh")
+def refresh_card_liabilities(account_id: str, db: Session = Depends(get_db)):
+    """Refresh liabilities for a single card's Plaid item."""
+    acct = db.get(Account, account_id)
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    item = db.get(PlaidItem, acct.item_id)
+    if not item:
+        raise HTTPException(404, "Plaid item not found")
+    client = _plaid_client()
+    now = datetime.now(timezone.utc)
+    updated, errors = _refresh_item_liabilities(item, client, db, now)
+    db.commit()
+    return {"updated": updated, "errors": errors}
+
+
 @router.post("/liabilities/refresh")
 def refresh_liabilities(db: Session = Depends(get_db)):
     items = db.query(PlaidItem).all()
     if not items:
         raise HTTPException(404, "No linked accounts.")
-
     client = _plaid_client()
     now = datetime.now(timezone.utc)
     updated = 0
-
     errors = []
-
     for item in items:
-        # Fetch statement data from /liabilities/get
-        try:
-            resp = client.liabilities_get(
-                LiabilitiesGetRequest(access_token=item.access_token)
-            )
-            credit_list = resp["liabilities"]["credit"] or []
-            for cc in credit_list:
-                acct = db.get(Account, cc["account_id"])
-                if not acct:
-                    continue
-                acct.statement_balance = cc["last_statement_balance"]
-                acct.statement_due_date = cc["next_payment_due_date"]
-                acct.minimum_payment = cc["minimum_payment_amount"]
-                acct.last_statement_date = cc["last_statement_issue_date"]
-                acct.liabilities_updated_at = now
-                updated += 1
-        except plaid.ApiException as e:
-            errors.append(f"Liabilities ({item.item_id[:8]}…): {e.body}")
-        except Exception as e:
-            errors.append(f"Liabilities ({item.item_id[:8]}…): {str(e)}")
-
-        # Also refresh current balance + credit limit from /accounts/balance/get
-        try:
-            resp = client.accounts_balance_get(
-                AccountsBalanceGetRequest(access_token=item.access_token)
-            )
-            for acct_data in resp["accounts"]:
-                if str(acct_data["type"]) == "credit":
-                    acct = db.get(Account, acct_data["account_id"])
-                    if acct:
-                        balances = acct_data["balances"]
-                        acct.balance = balances["current"]
-                        acct.credit_limit = balances["limit"]
-        except plaid.ApiException as e:
-            errors.append(f"Balances ({item.item_id[:8]}…): {e.body}")
-        except Exception as e:
-            errors.append(f"Balances ({item.item_id[:8]}…): {str(e)}")
-
+        u, e = _refresh_item_liabilities(item, client, db, now)
+        updated += u
+        errors += [f"({item.item_id[:8]}…) {err}" for err in e]
     db.commit()
     return {"updated": updated, "errors": errors}
 
