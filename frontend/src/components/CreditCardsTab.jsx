@@ -27,7 +27,7 @@ const STATUS_STYLE = {
 // Promo balance modal (add / edit)
 // ---------------------------------------------------------------------------
 function PromoModal({ promo, cards, onClose, onSave }) {
-  const [accountId, setAccountId] = useState(promo?.account_id ?? cards[0]?.account_id ?? '')
+  const [accountId, setAccountId] = useState(promo?.account_id ?? promo?._addForCard ?? cards[0]?.account_id ?? '')
   const [description, setDescription] = useState(promo?.description ?? '')
   const [amount, setAmount] = useState(promo ? String(promo.current_amount) : '')
   const [endDate, setEndDate] = useState(promo?.promo_end_date ?? '')
@@ -282,7 +282,7 @@ export default function CreditCardsTab() {
   }
 
   const handleSavePromo = async (body) => {
-    if (promoModal && promoModal !== 'add') {
+    if (promoModal && promoModal !== 'add' && !promoModal._addForCard) {
       await updatePromoBalance(promoModal.id, body)
     } else {
       await createPromoBalance(body)
@@ -296,14 +296,11 @@ export default function CreditCardsTab() {
     catch (e) { setError(e.message) }
   }
 
-  // Collect all promos across cards for the promo section
-  const allPromos = cards.flatMap((c) => c.promos.map((p) => ({ ...p, cardName: c.name, cardMask: c.mask, account_id: c.account_id })))
-
   return (
     <div>
       {promoModal !== null && (
         <PromoModal
-          promo={promoModal === 'add' ? null : promoModal}
+          promo={(promoModal === 'add' || promoModal?._addForCard) ? null : promoModal}
           cards={cards}
           onClose={() => setPromoModal(null)}
           onSave={handleSavePromo}
@@ -451,78 +448,72 @@ export default function CreditCardsTab() {
                       )}
                     </div>
                   </div>
+
+                  {/* ── Promo balances for this card ── */}
+                  <div style={{ marginTop: 12, borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
+                    {card.promos.length > 0 && (
+                      <div style={{ display: 'grid', gap: 8, marginBottom: 8 }}>
+                        {card.promos.map((promo) => {
+                          const urgent = promo.days_remaining <= 60
+                          const critical = promo.days_remaining <= 14
+                          return (
+                            <div key={promo.id} style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              flexWrap: 'wrap', gap: 8,
+                              background: critical ? '#fef2f2' : urgent ? '#fffbeb' : '#f9fafb',
+                              border: `1px solid ${critical ? '#fecaca' : urgent ? '#fde68a' : '#e5e7eb'}`,
+                              borderRadius: 8, padding: '8px 12px',
+                            }}>
+                              <div style={{ flex: 1, minWidth: 180 }}>
+                                <span style={{ fontWeight: 600, fontSize: 13 }}>{promo.description}</span>
+                                <span style={{ marginLeft: 10, fontSize: 13, color: '#111' }}>{fmt(promo.current_amount)}</span>
+                                <span style={{ marginLeft: 6, fontSize: 12, color: '#888' }}>remaining</span>
+                                <span style={{ marginLeft: 10, fontSize: 12, color: '#555' }}>
+                                  {'0% expires '}
+                                  <strong style={{ color: critical ? '#dc2626' : urgent ? '#d97706' : '#374151' }}>
+                                    {fmtDate(promo.promo_end_date)}
+                                  </strong>
+                                  <span style={{ marginLeft: 6, fontWeight: 600, color: critical ? '#dc2626' : urgent ? '#d97706' : '#9ca3af' }}>
+                                    ({promo.days_remaining}d)
+                                  </span>
+                                </span>
+                                {promo.notes && <span style={{ marginLeft: 8, fontSize: 11, color: '#aaa' }}>{promo.notes}</span>}
+                              </div>
+                              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                                <button
+                                  onClick={() => setPlanModal({ promo, cardName: card.name })}
+                                  style={{ padding: '3px 10px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                                >
+                                  Plan
+                                </button>
+                                <button
+                                  onClick={() => setPromoModal({ ...promo, account_id: card.account_id })}
+                                  style={{ padding: '3px 8px', background: 'none', border: '1px solid #e5e7eb', borderRadius: 5, cursor: 'pointer', fontSize: 11, color: '#555' }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePromo(promo.id)}
+                                  style={{ padding: '3px 8px', background: 'none', border: '1px solid #fecaca', borderRadius: 5, cursor: 'pointer', fontSize: 11, color: '#ef4444' }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setPromoModal({ _addForCard: card.account_id })}
+                      style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px dashed #c7d2fe', borderRadius: 5, padding: '3px 10px', cursor: 'pointer' }}
+                    >
+                      + Add Promo
+                    </button>
+                  </div>
                 </div>
               )
             })}
-          </div>
-
-          {/* ── Promo Balances ── */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#374151', margin: 0 }}>
-                Promo Balances ({allPromos.length})
-              </h3>
-            </div>
-
-            {allPromos.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: '#888', fontSize: 13 }}>
-                No promo balances — click "+ Add Promo" to track a 0% promotional balance.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {allPromos.map((promo) => {
-                  const urgent = promo.days_remaining <= 60
-                  const critical = promo.days_remaining <= 14
-                  return (
-                    <div key={promo.id} style={{
-                      border: `1px solid ${critical ? '#fecaca' : urgent ? '#fde68a' : '#e5e7eb'}`,
-                      background: critical ? '#fef2f2' : urgent ? '#fffbeb' : '#fff',
-                      borderRadius: 10, padding: '12px 16px',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{promo.description}</div>
-                          <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                            {promo.cardName}{promo.cardMask ? ` ····${promo.cardMask}` : ''}
-                          </div>
-                          <div style={{ marginTop: 8, fontSize: 13 }}>
-                            <strong style={{ fontSize: 16, color: '#111' }}>{fmt(promo.current_amount)}</strong>
-                            {' remaining · 0% expires '}
-                            <strong style={{ color: critical ? '#dc2626' : urgent ? '#d97706' : '#111' }}>
-                              {fmtDate(promo.promo_end_date)}
-                            </strong>
-                            <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 600, color: critical ? '#dc2626' : urgent ? '#d97706' : '#888' }}>
-                              ({promo.days_remaining} days)
-                            </span>
-                          </div>
-                          {promo.notes && <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>{promo.notes}</div>}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          <button
-                            onClick={() => setPlanModal({ promo, cardName: promo.cardName })}
-                            style={{ padding: '5px 12px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                          >
-                            Plan Payments
-                          </button>
-                          <button
-                            onClick={() => setPromoModal(promo)}
-                            style={{ padding: '5px 10px', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#555' }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeletePromo(promo.id)}
-                            style={{ padding: '5px 10px', background: 'none', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#ef4444' }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
           </div>
         </>
       )}
