@@ -108,7 +108,7 @@ def create_link_token():
         )
 
     kwargs = dict(
-        products=[Products("transactions")],
+        products=[Products("transactions"), Products("liabilities")],
         client_name="Cormond",
         country_codes=[CountryCode("US")],
         language="en",
@@ -126,6 +126,39 @@ def create_link_token():
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"{type(e).__name__}: {e}")
 
+    return LinkTokenResponse(
+        link_token=response["link_token"],
+        expiration=str(response["expiration"]),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1b. Update mode link token — reconnects an existing item to add new products
+# ---------------------------------------------------------------------------
+
+@router.post("/link/token/update/{item_id}")
+def create_update_link_token(item_id: str, db: Session = Depends(get_db)):
+    """Create a Plaid Link token in update mode for an existing item.
+    Used to add new products (e.g. liabilities) to an already-connected item.
+    """
+    item = db.get(PlaidItem, item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    client = _plaid_client()
+    redirect_uri = os.getenv("PLAID_REDIRECT_URI", "").strip() or None
+    kwargs = dict(
+        access_token=item.access_token,
+        client_name="Cormond",
+        country_codes=[CountryCode("US")],
+        language="en",
+        user=LinkTokenCreateRequestUser(client_user_id="local-user"),
+    )
+    if redirect_uri:
+        kwargs["redirect_uri"] = redirect_uri
+    try:
+        response = client.link_token_create(LinkTokenCreateRequest(**kwargs))
+    except plaid.ApiException as e:
+        raise HTTPException(status_code=502, detail=str(e.body))
     return LinkTokenResponse(
         link_token=response["link_token"],
         expiration=str(response["expiration"]),
@@ -168,6 +201,34 @@ def exchange_public_token(
         item_id=item_id,
         institution_name=body.institution_name,
     )
+
+
+# ---------------------------------------------------------------------------
+# 2b. Complete update-mode flow — exchange the new public token
+# ---------------------------------------------------------------------------
+
+@router.post("/items/{item_id}/update-complete")
+def complete_item_update(
+    item_id: str,
+    body: ExchangeTokenRequest,
+    db: Session = Depends(get_db),
+):
+    """Exchange the public token returned after a Plaid Link update-mode session.
+    Stores the refreshed access_token (usually unchanged) so new products are active.
+    """
+    item = db.get(PlaidItem, item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    client = _plaid_client()
+    try:
+        response = client.item_public_token_exchange(
+            ItemPublicTokenExchangeRequest(public_token=body.public_token)
+        )
+    except plaid.ApiException as e:
+        raise HTTPException(status_code=502, detail=str(e.body))
+    item.access_token = response["access_token"]
+    db.commit()
+    return {"item_id": item_id, "updated": True}
 
 
 # ---------------------------------------------------------------------------

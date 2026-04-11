@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail, syncAmazonOrders } from '../api/client'
 import PlaidLinkButton from './PlaidLink'
+import PlaidReconnectButton from './PlaidReconnectButton'
 
 function formatSyncTime(ts) {
   if (!ts) return 'Never'
@@ -248,6 +249,7 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
                     >
                       {syncingItem === item.item_id ? 'Syncing…' : 'Sync'}
                     </button>
+                    <PlaidReconnectButton itemId={item.item_id} onSuccess={onPlaidSuccess} />
                   </>
                 )}
                 <button
