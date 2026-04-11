@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from .database import engine, SessionLocal
 from .models import Base
-from .routers import auth, cashflow, categories, gmail, import_csv, plaid, templates, transactions
+from .routers import auth, cashflow, categories, credit_cards, gmail, import_csv, plaid, templates, transactions
 from .seed_categories import seed_budget_categories
 
 load_dotenv()
@@ -31,6 +31,14 @@ _MIGRATIONS = [
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS institution_name VARCHAR",
     "ALTER TABLE amazon_orders ADD COLUMN IF NOT EXISTS subtotals TEXT",
     "ALTER TABLE amazon_orders ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS credit_limit FLOAT",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS statement_balance FLOAT",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS statement_due_date DATE",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS minimum_payment FLOAT",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_statement_date DATE",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS liabilities_updated_at TIMESTAMP WITH TIME ZONE",
+    "ALTER TABLE cashflow_entries ADD COLUMN IF NOT EXISTS account_id VARCHAR REFERENCES accounts(account_id) ON DELETE SET NULL",
+    "CREATE TABLE IF NOT EXISTS promo_balances (id SERIAL PRIMARY KEY, account_id VARCHAR NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE, description VARCHAR NOT NULL, current_amount FLOAT NOT NULL, promo_end_date DATE NOT NULL, notes VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
 ]
 _SEEDS = [
     "UPDATE budget_categories SET hide_from_reports = TRUE WHERE macro_category = 'Financial Transactions'",
@@ -91,6 +99,7 @@ app.include_router(categories.router, prefix="/api")
 app.include_router(import_csv.router, prefix="/api")
 app.include_router(templates.router, prefix="/api")
 app.include_router(cashflow.router, prefix="/api")
+app.include_router(credit_cards.router, prefix="/api")
 
 
 @app.get("/health")

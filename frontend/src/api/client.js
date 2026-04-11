@@ -472,6 +472,77 @@ export async function getRecurringSuggestions(months = 6) {
   return res.json()
 }
 
+// ---------------------------------------------------------------------------
+// Credit cards
+// ---------------------------------------------------------------------------
+
+export async function getCreditCards() {
+  const res = await fetch(`${BASE}/credit-cards`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function refreshLiabilities() {
+  const res = await fetch(`${BASE}/credit-cards/liabilities/refresh`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function checkSchedulePayment(accountId) {
+  const res = await fetch(`${BASE}/credit-cards/${accountId}/schedule-payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'check' }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function confirmSchedulePayment(accountId, action, replaceId = null) {
+  const res = await fetch(`${BASE}/credit-cards/${accountId}/schedule-payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, replace_id: replaceId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function createPromoBalance(body) {
+  const res = await fetch(`${BASE}/credit-cards/promos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function updatePromoBalance(id, body) {
+  const res = await fetch(`${BASE}/credit-cards/promos/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deletePromoBalance(id) {
+  const res = await fetch(`${BASE}/credit-cards/promos/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export async function planPromoPayments(promoId, numPayments, startDate) {
+  const res = await fetch(`${BASE}/credit-cards/promos/${promoId}/plan-payments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ num_payments: numPayments, start_date: startDate }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function refreshCashflowBalances() {
   const res = await fetch(`${BASE}/cashflow/balance/refresh`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())

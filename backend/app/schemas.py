@@ -137,6 +137,7 @@ class CashflowEntryCreate(BaseModel):
     is_recurring: bool = False
     recurrence: Optional[str] = None       # monthly | biweekly | weekly | quarterly | yearly
     recurrence_end_date: Optional[date] = None
+    account_id: Optional[str] = None
 
 
 class CashflowEntryOut(BaseModel):
@@ -148,5 +149,25 @@ class CashflowEntryOut(BaseModel):
     is_recurring: bool
     recurrence: Optional[str]
     recurrence_end_date: Optional[date]
+    account_id: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PromoBalanceCreate(BaseModel):
+    account_id: str
+    description: str
+    current_amount: float
+    promo_end_date: date
+    notes: Optional[str] = None
+
+
+class PromoBalanceOut(BaseModel):
+    id: int
+    account_id: str
+    description: str
+    current_amount: float
+    promo_end_date: date
+    notes: Optional[str]
 
     model_config = {"from_attributes": True}

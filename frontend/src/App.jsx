@@ -7,6 +7,7 @@ import DateFilter, { getDateRange, getFilterLabel } from './components/DateFilte
 import { getTransactions, listItems, syncTransactions, getCategories } from './api/client'
 import CategoriesTab from './components/CategoriesTab'
 import CashflowTab from './components/CashflowTab'
+import CreditCardsTab from './components/CreditCardsTab'
 import ImportCsvModal from './components/ImportCsvModal'
 import AccountsTab from './components/AccountsTab'
 import AmazonTab from './components/AmazonTab'
@@ -133,7 +134,7 @@ export default function App() {
 
 
       <nav className="nav-tabs">
-        {['dashboard', 'transactions', 'accounts', 'amazon', 'cashflow', 'categories'].map((t) => (
+        {['dashboard', 'transactions', 'accounts', 'amazon', 'cashflow', 'credit cards', 'categories'].map((t) => (
           <button
             key={t}
             className="nav-tab"
@@ -149,7 +150,7 @@ export default function App() {
       </nav>
 
       {/* Date filter + review mode toggle */}
-      {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && tab !== 'amazon' && (
+      {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && tab !== 'amazon' && tab !== 'credit cards' && (
         <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {!reviewMode && !splitQueueMode && <DateFilter filter={filter} onChange={setFilter} />}
           {!reviewMode && !splitQueueMode && <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>}
@@ -230,6 +231,12 @@ export default function App() {
       {tab === 'cashflow' && (
         <section className="card">
           <CashflowTab />
+        </section>
+      )}
+
+      {tab === 'credit cards' && (
+        <section className="card">
+          <CreditCardsTab />
         </section>
       )}
 

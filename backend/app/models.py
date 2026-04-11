@@ -42,6 +42,12 @@ class Account(Base):
     is_excluded = Column(Boolean, default=False, nullable=False)  # skip sync (e.g. joint account on second login)
     balance = Column(Float, nullable=True)
     balance_updated_at = Column(DateTime(timezone=True), nullable=True)
+    credit_limit = Column(Float, nullable=True)
+    statement_balance = Column(Float, nullable=True)
+    statement_due_date = Column(Date, nullable=True)
+    minimum_payment = Column(Float, nullable=True)
+    last_statement_date = Column(Date, nullable=True)
+    liabilities_updated_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class Transaction(Base):
@@ -77,6 +83,7 @@ class CashflowEntry(Base):
     is_recurring = Column(Boolean, default=False)
     recurrence = Column(String, nullable=True)      # monthly | biweekly | weekly | quarterly | yearly
     recurrence_end_date = Column(Date, nullable=True)
+    account_id = Column(String, ForeignKey("accounts.account_id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -140,3 +147,16 @@ class TransactionSplit(Base):
     note = Column(String, nullable=True)
     budget_sub_category = Column(String, nullable=True)
     transaction = relationship("Transaction", back_populates="splits")
+
+
+class PromoBalance(Base):
+    """Tracks 0%-interest promotional balances that must be paid off by a deadline."""
+    __tablename__ = "promo_balances"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(String, ForeignKey("accounts.account_id", ondelete="CASCADE"), nullable=False)
+    description = Column(String, nullable=False)      # e.g. "Home Depot purchase", "Balance transfer"
+    current_amount = Column(Float, nullable=False)    # manually updated as payments are made
+    promo_end_date = Column(Date, nullable=False)     # 0% period expires — must be paid by this date
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
