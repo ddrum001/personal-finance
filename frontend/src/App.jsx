@@ -25,7 +25,9 @@ const DEFAULT_FILTER = {
 
 export default function App() {
   const [user, setUser] = useState(undefined) // undefined = loading, null = not authed
-  const [tab, setTab] = useState('dashboard')
+  const [tab, setTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard')
+
+  const switchTab = (t) => { setTab(t); localStorage.setItem('activeTab', t) }
   const [transactions, setTransactions] = useState([])
   const [items, setItems] = useState([])
   const [categories, setCategories] = useState([])
@@ -138,7 +140,7 @@ export default function App() {
           <button
             key={t}
             className="nav-tab"
-            onClick={() => setTab(t)}
+            onClick={() => switchTab(t)}
             style={{
               color: tab === t ? '#6366f1' : '#555',
               borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
