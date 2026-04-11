@@ -32,6 +32,7 @@ function PromoModal({ promo, defaultAccountId, cards, onClose, onSave }) {
   const [description, setDescription] = useState(promo?.description ?? '')
   const [amount, setAmount] = useState(promo ? String(promo.current_amount) : '')
   const [endDate, setEndDate] = useState(promo?.promo_end_date ?? '')
+  const [promoType, setPromoType] = useState(promo?.promo_type ?? 'balance_transfer')
   const [notes, setNotes] = useState(promo?.notes ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -42,7 +43,7 @@ function PromoModal({ promo, defaultAccountId, cards, onClose, onSave }) {
     if (isNaN(amt) || amt < 0) { setError('Amount must be a positive number'); return }
     setSaving(true); setError(null)
     try {
-      await onSave({ account_id: accountId, description: description.trim(), current_amount: amt, promo_end_date: endDate, notes: notes.trim() || null })
+      await onSave({ account_id: accountId, description: description.trim(), current_amount: amt, promo_end_date: endDate, promo_type: promoType, notes: notes.trim() || null })
       onClose()
     } catch (e) { setError(e.message) } finally { setSaving(false) }
   }
@@ -67,6 +68,33 @@ function PromoModal({ promo, defaultAccountId, cards, onClose, onSave }) {
           <div>
             <label style={labelStyle}>Description</label>
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Home Depot purchase" style={inputStyle} autoFocus />
+          </div>
+          <div>
+            <label style={labelStyle}>Promo type</label>
+            <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+              {[
+                { value: 'balance_transfer', label: 'Balance Transfer' },
+                { value: 'purchases', label: 'All Purchases' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPromoType(value)}
+                  style={{
+                    flex: 1, padding: '8px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+                    background: promoType === value ? '#6366f1' : '#fff',
+                    color: promoType === value ? '#fff' : '#555',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {promoType === 'balance_transfer' && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#d97706', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, padding: '5px 8px' }}>
+                New purchases on this card accrue interest at the regular rate.
+              </div>
+            )}
           </div>
           <div>
             <label style={labelStyle}>Remaining balance</label>
@@ -467,19 +495,32 @@ export default function CreditCardsTab() {
                               borderRadius: 8, padding: '8px 12px',
                             }}>
                               <div style={{ flex: 1, minWidth: 180 }}>
-                                <span style={{ fontWeight: 600, fontSize: 13 }}>{promo.description}</span>
-                                <span style={{ marginLeft: 10, fontSize: 13, color: '#111' }}>{fmt(promo.current_amount)}</span>
-                                <span style={{ marginLeft: 6, fontSize: 12, color: '#888' }}>remaining</span>
-                                <span style={{ marginLeft: 10, fontSize: 12, color: '#555' }}>
-                                  {'0% expires '}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 600, fontSize: 13 }}>{promo.description}</span>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.03em',
+                                    background: promo.promo_type === 'purchases' ? '#ede9fe' : '#fef3c7',
+                                    color: promo.promo_type === 'purchases' ? '#6d28d9' : '#92400e',
+                                  }}>
+                                    {promo.promo_type === 'purchases' ? 'All Purchases' : 'Balance Transfer'}
+                                  </span>
+                                </div>
+                                <div style={{ marginTop: 3, fontSize: 12, color: '#555' }}>
+                                  <span style={{ fontWeight: 600, color: '#111' }}>{fmt(promo.current_amount)}</span>
+                                  {' remaining · 0% expires '}
                                   <strong style={{ color: critical ? '#dc2626' : urgent ? '#d97706' : '#374151' }}>
                                     {fmtDate(promo.promo_end_date)}
                                   </strong>
                                   <span style={{ marginLeft: 6, fontWeight: 600, color: critical ? '#dc2626' : urgent ? '#d97706' : '#9ca3af' }}>
                                     ({promo.days_remaining}d)
                                   </span>
-                                </span>
-                                {promo.notes && <span style={{ marginLeft: 8, fontSize: 11, color: '#aaa' }}>{promo.notes}</span>}
+                                </div>
+                                {promo.promo_type === 'balance_transfer' && (
+                                  <div style={{ marginTop: 3, fontSize: 11, color: '#b45309' }}>
+                                    ⚠ New purchases on this card are NOT covered — they accrue interest immediately.
+                                  </div>
+                                )}
+                                {promo.notes && <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{promo.notes}</div>}
                               </div>
                               <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                                 <button

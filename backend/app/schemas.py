@@ -159,6 +159,7 @@ class PromoBalanceCreate(BaseModel):
     description: str
     current_amount: float
     promo_end_date: date
+    promo_type: str = "balance_transfer"
     notes: Optional[str] = None
 
 
@@ -168,6 +169,7 @@ class PromoBalanceOut(BaseModel):
     description: str
     current_amount: float
     promo_end_date: date
+    promo_type: str = "balance_transfer"
     notes: Optional[str]
 
     model_config = {"from_attributes": True}

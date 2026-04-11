@@ -158,5 +158,6 @@ class PromoBalance(Base):
     description = Column(String, nullable=False)      # e.g. "Home Depot purchase", "Balance transfer"
     current_amount = Column(Float, nullable=False)    # manually updated as payments are made
     promo_end_date = Column(Date, nullable=False)     # 0% period expires — must be paid by this date
+    promo_type = Column(String, nullable=False, default="balance_transfer")  # "purchases" | "balance_transfer"
     notes = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

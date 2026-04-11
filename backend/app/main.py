@@ -39,6 +39,7 @@ _MIGRATIONS = [
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS liabilities_updated_at TIMESTAMP WITH TIME ZONE",
     "ALTER TABLE cashflow_entries ADD COLUMN IF NOT EXISTS account_id VARCHAR REFERENCES accounts(account_id) ON DELETE SET NULL",
     "CREATE TABLE IF NOT EXISTS promo_balances (id SERIAL PRIMARY KEY, account_id VARCHAR NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE, description VARCHAR NOT NULL, current_amount FLOAT NOT NULL, promo_end_date DATE NOT NULL, notes VARCHAR, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())",
+    "ALTER TABLE promo_balances ADD COLUMN IF NOT EXISTS promo_type VARCHAR NOT NULL DEFAULT 'balance_transfer'",
 ]
 _SEEDS = [
     "UPDATE budget_categories SET hide_from_reports = TRUE WHERE macro_category = 'Financial Transactions'",
