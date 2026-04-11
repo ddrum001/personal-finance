@@ -116,24 +116,29 @@ def refresh_liabilities(db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     updated = 0
 
+    errors = []
+
     for item in items:
         # Fetch statement data from /liabilities/get
         try:
             resp = client.liabilities_get(
                 LiabilitiesGetRequest(access_token=item.access_token)
             )
-            for cc in (resp["liabilities"].get("credit") or []):
+            credit_list = resp["liabilities"]["credit"] or []
+            for cc in credit_list:
                 acct = db.get(Account, cc["account_id"])
                 if not acct:
                     continue
-                acct.statement_balance = cc.get("last_statement_balance")
-                acct.statement_due_date = cc.get("next_payment_due_date")
-                acct.minimum_payment = cc.get("minimum_payment_amount")
-                acct.last_statement_date = cc.get("last_statement_issue_date")
+                acct.statement_balance = cc["last_statement_balance"]
+                acct.statement_due_date = cc["next_payment_due_date"]
+                acct.minimum_payment = cc["minimum_payment_amount"]
+                acct.last_statement_date = cc["last_statement_issue_date"]
                 acct.liabilities_updated_at = now
                 updated += 1
-        except plaid.ApiException:
-            pass
+        except plaid.ApiException as e:
+            errors.append(f"Liabilities ({item.item_id[:8]}…): {e.body}")
+        except Exception as e:
+            errors.append(f"Liabilities ({item.item_id[:8]}…): {str(e)}")
 
         # Also refresh current balance + credit limit from /accounts/balance/get
         try:
@@ -141,17 +146,19 @@ def refresh_liabilities(db: Session = Depends(get_db)):
                 AccountsBalanceGetRequest(access_token=item.access_token)
             )
             for acct_data in resp["accounts"]:
-                if acct_data.get("type") == "credit":
+                if str(acct_data["type"]) == "credit":
                     acct = db.get(Account, acct_data["account_id"])
                     if acct:
-                        balances = acct_data.get("balances", {})
-                        acct.balance = balances.get("current")
-                        acct.credit_limit = balances.get("limit")
-        except plaid.ApiException:
-            pass
+                        balances = acct_data["balances"]
+                        acct.balance = balances["current"]
+                        acct.credit_limit = balances["limit"]
+        except plaid.ApiException as e:
+            errors.append(f"Balances ({item.item_id[:8]}…): {e.body}")
+        except Exception as e:
+            errors.append(f"Balances ({item.item_id[:8]}…): {str(e)}")
 
     db.commit()
-    return {"updated": updated}
+    return {"updated": updated, "errors": errors}
 
 
 # ---------------------------------------------------------------------------

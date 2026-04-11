@@ -228,7 +228,11 @@ export default function CreditCardsTab() {
 
   const handleRefresh = async () => {
     setRefreshing(true); setError(null)
-    try { await refreshLiabilities(); await load() }
+    try {
+      const result = await refreshLiabilities()
+      if (result.errors?.length) setError(result.errors.join(' | '))
+      await load()
+    }
     catch (e) { setError(e.message) }
     finally { setRefreshing(false) }
   }
