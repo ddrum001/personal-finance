@@ -11,6 +11,7 @@ import {
   refreshCashflowBalances,
 } from '../api/client'
 import CashflowEntryModal from './CashflowEntryModal'
+import RecurringSuggestionsModal from './RecurringSuggestionsModal'
 
 const fmt = (n) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -24,7 +25,12 @@ const fmtDate = (d) => {
   return `${parseInt(m)}/${parseInt(day)}/${y}`
 }
 
-const MONTHS_OPTIONS = [3, 6, 9, 12, 18, 24]
+const WINDOW_OPTIONS = [
+  { days: 14,  label: '2 weeks' },
+  { days: 30,  label: '1 month' },
+  { days: 90,  label: '3 months' },
+  { days: 180, label: '6 months' },
+]
 
 function CustomTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -43,10 +49,11 @@ function CustomTooltip({ active, payload }) {
 export default function CashflowTab() {
   const [projection, setProjection] = useState(null)
   const [entries, setEntries] = useState([])
-  const [months, setMonths] = useState(6)
+  const [days, setDays] = useState(14)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [modal, setModal] = useState(null) // null | 'add' | entry-object
+  const [showImport, setShowImport] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState(null)
 
@@ -55,7 +62,7 @@ export default function CashflowTab() {
     setError(null)
     try {
       const [proj, ents] = await Promise.all([
-        getCashflowProjection(months),
+        getCashflowProjection(days),
         getCashflowEntries(),
       ])
       setProjection(proj)
@@ -65,7 +72,7 @@ export default function CashflowTab() {
     } finally {
       setLoading(false)
     }
-  }, [months])
+  }, [days])
 
   useEffect(() => { load() }, [load])
 
@@ -121,6 +128,12 @@ export default function CashflowTab() {
           onSave={handleSave}
         />
       )}
+      {showImport && (
+        <RecurringSuggestionsModal
+          onClose={() => setShowImport(false)}
+          onImported={load}
+        />
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -145,23 +158,36 @@ export default function CashflowTab() {
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Months selector */}
-          <select
-            value={months}
-            onChange={(e) => setMonths(Number(e.target.value))}
-            style={{ padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}
-          >
-            {MONTHS_OPTIONS.map((m) => (
-              <option key={m} value={m}>{m} months</option>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Window selector */}
+          <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+            {WINDOW_OPTIONS.map((opt) => (
+              <button
+                key={opt.days}
+                onClick={() => setDays(opt.days)}
+                style={{
+                  padding: '6px 12px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  background: days === opt.days ? '#6366f1' : '#fff',
+                  color: days === opt.days ? '#fff' : '#555',
+                  borderRight: '1px solid #e5e7eb',
+                }}
+              >
+                {opt.label}
+              </button>
             ))}
-          </select>
+          </div>
           <button
             onClick={handleRefreshBalance}
             disabled={refreshing}
             style={{ padding: '7px 14px', background: '#fff', border: '1px solid #6366f1', color: '#6366f1', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
           >
             {refreshing ? 'Refreshing…' : 'Refresh Balance'}
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            style={{ padding: '7px 14px', background: '#fff', border: '1px solid #10b981', color: '#10b981', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+          >
+            Import Recurring
           </button>
           <button
             onClick={() => setModal('add')}

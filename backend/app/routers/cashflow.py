@@ -1,6 +1,7 @@
 import os
 import calendar
 from datetime import date, datetime, timedelta, timezone
+from statistics import median, stdev as _stdev
 from typing import Optional
 
 import plaid
@@ -11,7 +12,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Account, CashflowEntry, PlaidItem
+from ..models import Account, CashflowEntry, PlaidItem, Transaction
 from ..schemas import CashflowEntryCreate, CashflowEntryOut
 
 load_dotenv()
@@ -143,13 +144,126 @@ def delete_entry(entry_id: int, db: Session = Depends(get_db)):
 # Projection
 # ---------------------------------------------------------------------------
 
+@router.get("/suggestions")
+def get_recurring_suggestions(
+    months: int = Query(6, ge=3, le=12),
+    db: Session = Depends(get_db),
+):
+    """
+    Scan checking account transaction history to detect recurring patterns
+    (paychecks, mortgage, utility ACH, etc.) and return them as suggested
+    cashflow entries. Only looks at non-excluded checking accounts.
+    """
+    today = date.today()
+    lookback_date = _add_months(today, -months)
+
+    # Non-excluded checking accounts (same pool used for starting balance)
+    checking_ids = [
+        a.account_id for a in db.query(Account).all()
+        if a.subtype == "checking" and not a.is_excluded
+    ]
+    if not checking_ids:
+        return []
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.date >= lookback_date,
+            Transaction.pending == False,
+            Transaction.account_id.in_(checking_ids),
+        )
+        .all()
+    )
+
+    # Group by merchant_name → name
+    groups: dict[str, list] = {}
+    for txn in transactions:
+        key = txn.merchant_name or txn.name
+        if not key:
+            continue
+        groups.setdefault(key, []).append(txn)
+
+    existing_names = {e.name.lower() for e in db.query(CashflowEntry).all()}
+
+    suggestions = []
+    for name, txns in groups.items():
+        if len(txns) < 2:
+            continue
+
+        txns_sorted = sorted(txns, key=lambda t: t.date)
+        dates = [t.date for t in txns_sorted]
+        amounts = [t.amount for t in txns_sorted]
+
+        intervals = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
+        med_interval = median(intervals)
+
+        # Classify cadence
+        if 6 <= med_interval <= 8:
+            recurrence = "weekly"
+        elif 12 <= med_interval <= 16:
+            recurrence = "biweekly"
+        elif 27 <= med_interval <= 33:
+            recurrence = "monthly"
+        elif 83 <= med_interval <= 97:
+            recurrence = "quarterly"
+        else:
+            continue
+
+        # Require consistent intervals (cv ≤ 35%)
+        if len(intervals) >= 2:
+            if med_interval > 0 and _stdev(intervals) / med_interval > 0.35:
+                continue
+
+        # Require consistent amounts (cv ≤ 15%)
+        med_amount = median(amounts)
+        if med_amount == 0:
+            continue
+        if len(amounts) >= 2:
+            if abs(med_amount) > 0 and _stdev(amounts) / abs(med_amount) > 0.15:
+                continue
+
+        # Skip if name already exists as a cashflow entry
+        if name.lower() in existing_names:
+            continue
+
+        # Project next future occurrence
+        next_date = dates[-1]
+        while next_date <= today:
+            if recurrence == "monthly":
+                next_date = _add_months(next_date, 1)
+            elif recurrence == "biweekly":
+                next_date += timedelta(weeks=2)
+            elif recurrence == "weekly":
+                next_date += timedelta(weeks=1)
+            elif recurrence == "quarterly":
+                next_date = _add_months(next_date, 3)
+            else:
+                break
+
+        # Plaid: positive = debit/expense, negative = credit/income
+        # Cashflow: positive = income, negative = expense
+        cashflow_amount = -round(med_amount, 2)
+
+        suggestions.append({
+            "name": name,
+            "amount": cashflow_amount,
+            "recurrence": recurrence,
+            "next_date": next_date,
+            "occurrences": len(txns),
+            "last_date": dates[-1],
+        })
+
+    suggestions.sort(key=lambda s: -abs(s["amount"]))
+    return suggestions
+
+
 @router.get("/projection")
 def get_projection(
-    months: int = Query(6, ge=1, le=24),
+    days: int = Query(14, ge=7, le=365),
     db: Session = Depends(get_db),
 ):
     today = date.today()
-    end_date = _add_months(today, months)
+    end_date = today + timedelta(days=days)
 
     # Starting balance = sum of all checking accounts with a stored balance
     accounts = db.query(Account).all()

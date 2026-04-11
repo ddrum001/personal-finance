@@ -460,8 +460,14 @@ export async function deleteCashflowEntry(id) {
   if (!res.ok) throw new Error(await res.text())
 }
 
-export async function getCashflowProjection(months = 6) {
-  const res = await fetch(`${BASE}/cashflow/projection?months=${months}`)
+export async function getCashflowProjection(days = 14) {
+  const res = await fetch(`${BASE}/cashflow/projection?days=${days}`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function getRecurringSuggestions(months = 6) {
+  const res = await fetch(`${BASE}/cashflow/suggestions?months=${months}`)
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
