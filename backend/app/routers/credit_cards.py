@@ -67,7 +67,10 @@ def list_credit_cards(db: Session = Depends(get_db)):
         today = date.today()
         due = acct.statement_due_date
         has_balance = acct.statement_balance is not None
-        if due is None and not has_balance:
+        paid_off = acct.statement_balance is not None and acct.statement_balance == 0
+        if paid_off:
+            status = "paid"
+        elif due is None and not has_balance:
             status = "unknown"
         elif due is None:
             status = "no_due_date"  # has balance but Plaid didn't return a due date

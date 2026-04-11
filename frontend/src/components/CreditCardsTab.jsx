@@ -16,6 +16,7 @@ const fmtDate = (d) => {
 }
 
 const STATUS_STYLE = {
+  paid:        { background: '#f0fdf4', color: '#15803d', label: 'Paid' },
   overdue:     { background: '#fef2f2', color: '#dc2626', label: 'Overdue' },
   due_soon:    { background: '#fef9c3', color: '#854d0e', label: 'Due soon' },
   upcoming:    { background: '#f0fdf4', color: '#15803d', label: 'Upcoming' },
