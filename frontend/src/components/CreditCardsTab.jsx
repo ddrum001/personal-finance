@@ -30,10 +30,14 @@ const STATUS_STYLE = {
 function PromoModal({ promo, defaultAccountId, cards, onClose, onSave }) {
   const [accountId, setAccountId] = useState(promo?.account_id ?? defaultAccountId ?? cards[0]?.account_id ?? '')
   const [description, setDescription] = useState(promo?.description ?? '')
-  const [amount, setAmount] = useState(promo ? String(promo.current_amount) : '')
-  const [endDate, setEndDate] = useState(promo?.promo_end_date ?? '')
   const [promoType, setPromoType] = useState(promo?.promo_type ?? 'balance_transfer')
+  const [endDate, setEndDate] = useState(promo?.promo_end_date ?? '')
   const [notes, setNotes] = useState(promo?.notes ?? '')
+
+  const selectedCard = cards.find((c) => c.account_id === accountId)
+  const autoAmount = promoType === 'purchases' ? (selectedCard?.balance ?? null) : null
+  const [manualAmount, setManualAmount] = useState(promo ? String(promo.current_amount) : '')
+  const amount = autoAmount !== null ? String(autoAmount) : manualAmount
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -97,8 +101,20 @@ function PromoModal({ promo, defaultAccountId, cards, onClose, onSave }) {
             )}
           </div>
           <div>
-            <label style={labelStyle}>Remaining balance</label>
-            <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" style={inputStyle} />
+            <label style={labelStyle}>
+              Remaining balance
+              {autoAmount !== null && (
+                <span style={{ marginLeft: 6, fontWeight: 400, color: '#6d28d9' }}>· from current card balance</span>
+              )}
+            </label>
+            <input
+              type="number" min="0" step="0.01"
+              value={autoAmount !== null ? autoAmount : manualAmount}
+              onChange={(e) => { if (autoAmount === null) setManualAmount(e.target.value) }}
+              readOnly={autoAmount !== null}
+              placeholder="0.00"
+              style={{ ...inputStyle, background: autoAmount !== null ? '#f5f3ff' : undefined, color: autoAmount !== null ? '#6d28d9' : undefined }}
+            />
           </div>
           <div>
             <label style={labelStyle}>Promo end date (0% expires)</label>
