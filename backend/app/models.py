@@ -48,6 +48,10 @@ class Account(Base):
     minimum_payment = Column(Float, nullable=True)
     last_statement_date = Column(Date, nullable=True)
     liabilities_updated_at = Column(DateTime(timezone=True), nullable=True)
+    autopay_type = Column(String, nullable=True)           # minimum | statement | full | fixed
+    autopay_fixed_amount = Column(Float, nullable=True)
+    autopay_timing = Column(String, nullable=True)         # on_due_date | days_before_due | day_of_month
+    autopay_timing_value = Column(Integer, nullable=True)  # days before, or day of month
 
 
 class Transaction(Base):
@@ -84,6 +88,7 @@ class CashflowEntry(Base):
     recurrence = Column(String, nullable=True)      # monthly | biweekly | weekly | quarterly | yearly
     recurrence_end_date = Column(Date, nullable=True)
     account_id = Column(String, ForeignKey("accounts.account_id", ondelete="SET NULL"), nullable=True)
+    is_autopay = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

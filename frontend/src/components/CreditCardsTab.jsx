@@ -3,7 +3,7 @@ import {
   getCreditCards, refreshLiabilities, refreshCardLiabilities,
   checkSchedulePayment, confirmSchedulePayment,
   createPromoBalance, updatePromoBalance, deletePromoBalance,
-  planPromoPayments,
+  planPromoPayments, getAutopay, setAutopay, clearAutopay,
 } from '../api/client'
 
 const fmt = (n) =>
@@ -238,6 +238,163 @@ function ScheduleConflictModal({ proposed, existing, onReplace, onAdd, onClose }
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Autopay section (per card)
+// ---------------------------------------------------------------------------
+const AUTOPAY_TYPE_LABELS = {
+  minimum: 'Minimum payment',
+  statement: 'Statement balance',
+  full: 'Full balance',
+  fixed: 'Fixed amount',
+}
+const TIMING_LABELS = {
+  on_due_date: 'On due date',
+  days_before_due: 'days before due date',
+  day_of_month: 'of every month',
+}
+
+function AutopaySection({ card, onUpdated }) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Edit state
+  const [type, setType] = useState(card.autopay_type || '')
+  const [fixedAmt, setFixedAmt] = useState(card.autopay_fixed_amount ? String(card.autopay_fixed_amount) : '')
+  const [timing, setTiming] = useState(card.autopay_timing || 'on_due_date')
+  const [timingVal, setTimingVal] = useState(card.autopay_timing_value ? String(card.autopay_timing_value) : '')
+
+  const openEdit = () => {
+    setType(card.autopay_type || '')
+    setFixedAmt(card.autopay_fixed_amount ? String(card.autopay_fixed_amount) : '')
+    setTiming(card.autopay_timing || 'on_due_date')
+    setTimingVal(card.autopay_timing_value ? String(card.autopay_timing_value) : '')
+    setError(null)
+    setEditing(true)
+  }
+
+  const handleSave = async () => {
+    if (!type) return
+    if (type === 'fixed' && !fixedAmt) { setError('Enter a fixed amount'); return }
+    if (timing === 'days_before_due' && !timingVal) { setError('Enter number of days'); return }
+    if (timing === 'day_of_month' && !timingVal) { setError('Enter day of month'); return }
+    setSaving(true); setError(null)
+    try {
+      await setAutopay(card.account_id, {
+        autopay_type: type,
+        autopay_fixed_amount: type === 'fixed' ? parseFloat(fixedAmt) : null,
+        autopay_timing: timing,
+        autopay_timing_value: (timing === 'days_before_due' || timing === 'day_of_month') ? parseInt(timingVal) : null,
+      })
+      setEditing(false)
+      onUpdated()
+    } catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+
+  const handleClear = async () => {
+    setSaving(true)
+    try { await clearAutopay(card.account_id); setEditing(false); onUpdated() }
+    catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+
+  const fmtTimingDisplay = () => {
+    if (!card.autopay_timing || card.autopay_timing === 'on_due_date') return 'on due date'
+    if (card.autopay_timing === 'days_before_due') return `${card.autopay_timing_value} day${card.autopay_timing_value !== 1 ? 's' : ''} before due date`
+    if (card.autopay_timing === 'day_of_month') return `on the ${card.autopay_timing_value}${['th','st','nd','rd'][(card.autopay_timing_value % 10 > 3 || Math.floor(card.autopay_timing_value / 10) === 1) ? 0 : card.autopay_timing_value % 10] || 'th'} of every month`
+    return ''
+  }
+
+  const inputStyle = { padding: '5px 8px', border: '1px solid #e5e7eb', borderRadius: 5, fontSize: 12, background: '#fff' }
+
+  if (!editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {card.autopay_type ? (
+          <>
+            <span style={{ fontSize: 12, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
+              Autopay
+            </span>
+            <span style={{ fontSize: 12, color: '#374151' }}>
+              {AUTOPAY_TYPE_LABELS[card.autopay_type]}
+              {card.autopay_type === 'fixed' && card.autopay_fixed_amount ? ` · ${fmt(card.autopay_fixed_amount)}` : ''}
+              {' · '}{fmtTimingDisplay()}
+            </span>
+            {card.autopay_next_amount != null && card.autopay_next_date && (
+              <span style={{ fontSize: 12, color: '#6d28d9', fontWeight: 600 }}>
+                → {fmt(card.autopay_next_amount)} on {fmtDate(card.autopay_next_date)}
+              </span>
+            )}
+          </>
+        ) : (
+          <span style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No autopay configured</span>
+        )}
+        <button onClick={openEdit} style={{ fontSize: 11, color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}>
+          {card.autopay_type ? 'Edit' : 'Configure'}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        {/* Payment type */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 3 }}>Payment amount</div>
+          <select value={type} onChange={(e) => setType(e.target.value)} style={inputStyle}>
+            <option value="">— select —</option>
+            <option value="minimum">Minimum payment</option>
+            <option value="statement">Statement balance</option>
+            <option value="full">Full balance</option>
+            <option value="fixed">Fixed amount</option>
+          </select>
+        </div>
+        {type === 'fixed' && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 3 }}>Amount</div>
+            <input type="number" min="0" step="0.01" value={fixedAmt} onChange={(e) => setFixedAmt(e.target.value)} placeholder="0.00" style={{ ...inputStyle, width: 90 }} />
+          </div>
+        )}
+        {/* Timing */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 3 }}>Payment date</div>
+          <select value={timing} onChange={(e) => { setTiming(e.target.value); setTimingVal('') }} style={inputStyle}>
+            <option value="on_due_date">On due date</option>
+            <option value="days_before_due">N days before due date</option>
+            <option value="day_of_month">Same day every month</option>
+          </select>
+        </div>
+        {timing === 'days_before_due' && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 3 }}>Days before</div>
+            <input type="number" min="1" max="30" value={timingVal} onChange={(e) => setTimingVal(e.target.value)} placeholder="e.g. 2" style={{ ...inputStyle, width: 70 }} />
+          </div>
+        )}
+        {timing === 'day_of_month' && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 3 }}>Day of month</div>
+            <input type="number" min="1" max="28" value={timingVal} onChange={(e) => setTimingVal(e.target.value)} placeholder="e.g. 15" style={{ ...inputStyle, width: 70 }} />
+          </div>
+        )}
+      </div>
+      {error && <div style={{ fontSize: 12, color: '#ef4444' }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={handleSave} disabled={saving || !type} style={{ padding: '4px 12px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={() => setEditing(false)} style={{ padding: '4px 10px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: 5, cursor: 'pointer', fontSize: 12 }}>
+          Cancel
+        </button>
+        {card.autopay_type && (
+          <button onClick={handleClear} disabled={saving} style={{ padding: '4px 10px', background: 'none', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#ef4444' }}>
+            Remove
+          </button>
+        )}
       </div>
     </div>
   )
@@ -493,6 +650,11 @@ export default function CreditCardsTab() {
                         </span>
                       )}
                     </div>
+                  </div>
+
+                  {/* ── Autopay ── */}
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #f3f4f6' }}>
+                    <AutopaySection card={card} onUpdated={load} />
                   </div>
 
                   {/* ── Promo balances for this card ── */}

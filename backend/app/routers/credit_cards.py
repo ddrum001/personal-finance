@@ -84,6 +84,7 @@ def list_credit_cards(db: Session = Depends(get_db)):
         else:
             status = "upcoming"
 
+        autopay_amt, autopay_date = _compute_autopay_payment(acct, today)
         result.append({
             "account_id": acct.account_id,
             "name": acct.nickname or acct.name,
@@ -96,6 +97,12 @@ def list_credit_cards(db: Session = Depends(get_db)):
             "last_statement_date": acct.last_statement_date,
             "liabilities_updated_at": acct.liabilities_updated_at,
             "status": status,
+            "autopay_type": acct.autopay_type,
+            "autopay_fixed_amount": acct.autopay_fixed_amount,
+            "autopay_timing": acct.autopay_timing,
+            "autopay_timing_value": acct.autopay_timing_value,
+            "autopay_next_amount": autopay_amt,
+            "autopay_next_date": autopay_date,
             "promos": [
                 {
                     "id": p.id,
@@ -110,6 +117,161 @@ def list_credit_cards(db: Session = Depends(get_db)):
             ],
         })
     return result
+
+
+# ---------------------------------------------------------------------------
+# Autopay helpers
+# ---------------------------------------------------------------------------
+
+def _compute_autopay_payment(acct: Account, today: date) -> tuple[Optional[float], Optional[date]]:
+    """Return (amount, pay_date) for the card's autopay setting, or (None, None)."""
+    if not acct.autopay_type:
+        return None, None
+
+    if acct.autopay_type == "minimum":
+        amt = acct.minimum_payment
+    elif acct.autopay_type == "statement":
+        amt = acct.statement_balance
+    elif acct.autopay_type == "full":
+        amt = acct.balance
+    elif acct.autopay_type == "fixed":
+        amt = acct.autopay_fixed_amount
+    else:
+        return None, None
+
+    if amt is None or amt <= 0:
+        return None, None
+
+    timing = acct.autopay_timing or "on_due_date"
+    due = acct.statement_due_date
+
+    if timing == "on_due_date":
+        if not due:
+            return None, None
+        pay_date = due
+    elif timing == "days_before_due":
+        if not due:
+            return None, None
+        days = acct.autopay_timing_value or 0
+        pay_date = due - timedelta(days=days)
+    elif timing == "day_of_month":
+        dom = acct.autopay_timing_value or 1
+        dom = max(1, min(dom, 28))  # clamp to safe range
+        if today.day <= dom:
+            pay_date = today.replace(day=dom)
+        else:
+            pay_date = _add_months(today, 1).replace(day=dom)
+    else:
+        return None, None
+
+    return amt, pay_date
+
+
+def _apply_autopay_entry(acct: Account, db: Session, today: date) -> None:
+    """Create or update the autopay cashflow entry for this card after a liabilities refresh."""
+    existing = (
+        db.query(CashflowEntry)
+        .filter(CashflowEntry.account_id == acct.account_id, CashflowEntry.is_autopay == True)
+        .first()
+    )
+
+    amt, pay_date = _compute_autopay_payment(acct, today)
+
+    if amt is None or pay_date is None:
+        if existing:
+            db.delete(existing)
+        return
+
+    name = f"{acct.nickname or acct.name} — autopay"
+    entry_amount = -abs(amt)
+    type_label = {"minimum": "minimum payment", "statement": "statement balance",
+                  "full": "full balance", "fixed": "fixed amount"}.get(acct.autopay_type, acct.autopay_type)
+    notes = f"Autopay · {type_label}"
+
+    if existing:
+        existing.name = name
+        existing.date = pay_date
+        existing.amount = entry_amount
+        existing.notes = notes
+    else:
+        db.add(CashflowEntry(
+            name=name,
+            date=pay_date,
+            amount=entry_amount,
+            notes=notes,
+            is_recurring=False,
+            account_id=acct.account_id,
+            is_autopay=True,
+        ))
+
+
+# ---------------------------------------------------------------------------
+# Autopay settings endpoints
+# ---------------------------------------------------------------------------
+
+class AutopayUpdate(BaseModel):
+    autopay_type: Optional[str] = None       # minimum | statement | full | fixed | None to clear
+    autopay_fixed_amount: Optional[float] = None
+    autopay_timing: Optional[str] = None     # on_due_date | days_before_due | day_of_month
+    autopay_timing_value: Optional[int] = None
+
+
+@router.get("/{account_id}/autopay")
+def get_autopay(account_id: str, db: Session = Depends(get_db)):
+    acct = db.get(Account, account_id)
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    today = date.today()
+    amt, pay_date = _compute_autopay_payment(acct, today)
+    return {
+        "autopay_type": acct.autopay_type,
+        "autopay_fixed_amount": acct.autopay_fixed_amount,
+        "autopay_timing": acct.autopay_timing,
+        "autopay_timing_value": acct.autopay_timing_value,
+        "next_amount": amt,
+        "next_date": pay_date,
+    }
+
+
+@router.put("/{account_id}/autopay")
+def set_autopay(account_id: str, body: AutopayUpdate, db: Session = Depends(get_db)):
+    acct = db.get(Account, account_id)
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    acct.autopay_type = body.autopay_type
+    acct.autopay_fixed_amount = body.autopay_fixed_amount
+    acct.autopay_timing = body.autopay_timing
+    acct.autopay_timing_value = body.autopay_timing_value
+    today = date.today()
+    _apply_autopay_entry(acct, db, today)
+    db.commit()
+    amt, pay_date = _compute_autopay_payment(acct, today)
+    return {
+        "autopay_type": acct.autopay_type,
+        "autopay_timing": acct.autopay_timing,
+        "autopay_timing_value": acct.autopay_timing_value,
+        "next_amount": amt,
+        "next_date": pay_date,
+    }
+
+
+@router.delete("/{account_id}/autopay", status_code=204)
+def clear_autopay(account_id: str, db: Session = Depends(get_db)):
+    acct = db.get(Account, account_id)
+    if not acct:
+        raise HTTPException(404, "Account not found")
+    acct.autopay_type = None
+    acct.autopay_fixed_amount = None
+    acct.autopay_timing = None
+    acct.autopay_timing_value = None
+    existing = (
+        db.query(CashflowEntry)
+        .filter(CashflowEntry.account_id == account_id, CashflowEntry.is_autopay == True)
+        .first()
+    )
+    if existing:
+        db.delete(existing)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +298,8 @@ def _refresh_item_liabilities(item: PlaidItem, client, db: Session, now) -> tupl
             acct.last_statement_date = cc["last_statement_issue_date"]
             acct.liabilities_updated_at = now
             updated += 1
+            if acct.autopay_type:
+                _apply_autopay_entry(acct, db, now.date())
     except plaid.ApiException as e:
         errors.append(f"Liabilities: {e.body}")
     except Exception as e:

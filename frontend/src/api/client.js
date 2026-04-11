@@ -559,6 +559,27 @@ export async function planPromoPayments(promoId, numPayments, startDate) {
   return res.json()
 }
 
+export async function getAutopay(accountId) {
+  const res = await fetch(`${BASE}/credit-cards/${accountId}/autopay`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function setAutopay(accountId, body) {
+  const res = await fetch(`${BASE}/credit-cards/${accountId}/autopay`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function clearAutopay(accountId) {
+  const res = await fetch(`${BASE}/credit-cards/${accountId}/autopay`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+}
+
 export async function refreshCashflowBalances() {
   const res = await fetch(`${BASE}/cashflow/balance/refresh`, { method: 'POST' })
   if (!res.ok) throw new Error(await res.text())
