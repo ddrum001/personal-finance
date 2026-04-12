@@ -25,10 +25,17 @@ export default function DuplicatesView({ onResolved }) {
     setError(null)
     try {
       await deleteTransaction(transactionId)
-      await load()
+      // Remove optimistically — no full reload needed
+      setGroups(prev => {
+        const next = prev
+          .map(g => ({ ...g, transactions: g.transactions.filter(t => t.transaction_id !== transactionId) }))
+          .filter(g => g.transactions.length > 1)
+        return next
+      })
       onResolved?.()
     } catch (e) {
       setError(e.message)
+      await load() // only reload on error to restore consistent state
     } finally {
       setDeleting(null)
     }
