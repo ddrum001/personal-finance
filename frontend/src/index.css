@@ -18,7 +18,7 @@ body { font-family: system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; 
 .nav-tabs {
   display: flex;
   align-items: flex-end;
-  margin-bottom: 24px;
+  margin-bottom: 4px;
   border-bottom: 2px solid #e8eaf6;
   overflow-x: auto;
   scrollbar-width: none;
@@ -26,42 +26,41 @@ body { font-family: system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; 
   gap: 0;
 }
 .nav-tabs::-webkit-scrollbar { display: none; }
-.nav-group {
-  display: flex;
-  align-items: flex-end;
-  flex-shrink: 0;
-}
-.nav-group-divider {
-  width: 1px;
-  height: 28px;
-  background: #e5e7eb;
-  margin: 0 4px 6px;
-  flex-shrink: 0;
-}
-.nav-group-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #9ca3af;
-  padding: 0 8px 8px;
-  white-space: nowrap;
-  align-self: flex-end;
-}
-.nav-group-tabs {
-  display: flex;
-  align-items: flex-end;
-}
 .nav-tab {
-  padding: 10px 16px;
+  padding: 10px 20px;
   border: none;
   background: none;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   white-space: nowrap;
   flex-shrink: 0;
   margin-bottom: -2px;
+}
+
+/* ── Sub-tabs (second row) ── */
+.sub-tabs {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e8eaf6;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-left: 4px;
+}
+.sub-tabs::-webkit-scrollbar { display: none; }
+.sub-tab {
+  padding: 7px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-bottom: -1px;
+  color: #777;
 }
 
 /* ── Card ── */
@@ -176,6 +175,7 @@ body { font-family: system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; 
   .app-header-actions button { flex: 1; min-height: 44px; font-size: 14px; }
 
   .nav-tab { padding: 12px 16px; font-size: 13px; min-height: 44px; }
+  .sub-tab { padding: 10px 14px; font-size: 13px; min-height: 40px; }
 
   .card { padding: 16px 12px; border-radius: 8px; }
 
