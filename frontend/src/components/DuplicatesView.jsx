@@ -6,6 +6,7 @@ const fmt = (n) => n == null ? '—' : n.toLocaleString('en-US', { style: 'curre
 export default function DuplicatesView({ onResolved }) {
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
+  const [confirming, setConfirming] = useState(null)  // transaction_id awaiting confirmation
   const [deleting, setDeleting] = useState(null)
   const [error, setError] = useState(null)
 
@@ -19,7 +20,9 @@ export default function DuplicatesView({ onResolved }) {
   useEffect(() => { load() }, [])
 
   const handleDelete = async (transactionId) => {
-    setDeleting(transactionId); setError(null)
+    setConfirming(null)
+    setDeleting(transactionId)
+    setError(null)
     try {
       await deleteTransaction(transactionId)
       await load()
@@ -85,13 +88,28 @@ export default function DuplicatesView({ onResolved }) {
                     <td style={{ padding: '7px 8px', color: '#9ca3af' }}>{t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'}</td>
                     <td style={{ padding: '7px 8px', color: '#bbb', fontFamily: 'monospace', fontSize: 10 }}>{t.transaction_id.slice(0, 12)}…</td>
                     <td style={{ padding: '7px 14px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDelete(t.transaction_id)}
-                        disabled={deleting === t.transaction_id}
-                        style={{ padding: '3px 10px', background: 'none', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', fontSize: 11, color: '#ef4444', fontWeight: 600 }}
-                      >
-                        {deleting === t.transaction_id ? '…' : 'Delete'}
-                      </button>
+                      {deleting === t.transaction_id ? (
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>Deleting…</span>
+                      ) : confirming === t.transaction_id ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 11, color: '#374151' }}>Sure?</span>
+                          <button
+                            onClick={() => handleDelete(t.transaction_id)}
+                            style={{ padding: '3px 8px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
+                          >Yes</button>
+                          <button
+                            onClick={() => setConfirming(null)}
+                            style={{ padding: '3px 8px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}
+                          >No</button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirming(t.transaction_id)}
+                          style={{ padding: '3px 10px', background: 'none', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', fontSize: 11, color: '#ef4444', fontWeight: 600 }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
