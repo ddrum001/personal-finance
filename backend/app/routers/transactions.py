@@ -141,6 +141,51 @@ def list_transactions(
     return result
 
 
+@router.get("/duplicates")
+def find_duplicates(db: Session = Depends(get_db)):
+    """Return groups of transactions that share the same date, amount, and name."""
+    from sqlalchemy import func as sqlfunc
+    dup_keys = (
+        db.query(Transaction.date, Transaction.amount, Transaction.name)
+        .group_by(Transaction.date, Transaction.amount, Transaction.name)
+        .having(sqlfunc.count(Transaction.transaction_id) > 1)
+        .all()
+    )
+    if not dup_keys:
+        return []
+
+    cat_map = {c.sub_category: c for c in db.query(BudgetCategory).all()}
+    acct_map = {a.account_id: a for a in db.query(Account).all()}
+
+    groups = []
+    for d, amt, name in dup_keys:
+        txns = (
+            db.query(Transaction)
+            .filter(Transaction.date == d, Transaction.amount == amt, Transaction.name == name)
+            .order_by(Transaction.created_at)
+            .all()
+        )
+        rows = []
+        for t in txns:
+            acct = acct_map.get(t.account_id)
+            bc = cat_map.get(t.budget_sub_category)
+            rows.append({
+                "transaction_id": t.transaction_id,
+                "account_id": t.account_id,
+                "account_name": (acct.nickname or acct.name) if acct else None,
+                "account_mask": acct.mask if acct else None,
+                "institution_name": t.institution_name,
+                "budget_sub_category": t.budget_sub_category,
+                "budget_category": bc.category if bc else None,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "pending": t.pending,
+            })
+        groups.append({"date": d, "amount": amt, "name": name, "copies": len(rows), "transactions": rows})
+
+    groups.sort(key=lambda g: g["date"], reverse=True)
+    return groups
+
+
 @router.patch("/{transaction_id}/reviewed")
 def mark_reviewed(transaction_id: str, db: Session = Depends(get_db)):
     t = db.get(Transaction, transaction_id)
@@ -294,59 +339,6 @@ def delete_transaction(transaction_id: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "Transaction not found")
     db.delete(t)
     db.commit()
-
-
-@router.get("/duplicates")
-def find_duplicates(db: Session = Depends(get_db)):
-    """Return groups of transactions that share the same date, amount, and name."""
-    from sqlalchemy import func as sqlfunc
-    # Find (date, amount, name) combos with more than one transaction
-    dup_keys = (
-        db.query(Transaction.date, Transaction.amount, Transaction.name)
-        .group_by(Transaction.date, Transaction.amount, Transaction.name)
-        .having(sqlfunc.count(Transaction.transaction_id) > 1)
-        .all()
-    )
-
-    if not dup_keys:
-        return []
-
-    cat_map = {c.sub_category: c for c in db.query(BudgetCategory).all()}
-    acct_map = {a.account_id: a for a in db.query(Account).all()}
-
-    groups = []
-    for d, amt, name in dup_keys:
-        txns = (
-            db.query(Transaction)
-            .filter(Transaction.date == d, Transaction.amount == amt, Transaction.name == name)
-            .order_by(Transaction.created_at)
-            .all()
-        )
-        rows = []
-        for t in txns:
-            acct = acct_map.get(t.account_id)
-            bc = cat_map.get(t.budget_sub_category)
-            rows.append({
-                "transaction_id": t.transaction_id,
-                "account_id": t.account_id,
-                "account_name": (acct.nickname or acct.name) if acct else None,
-                "account_mask": acct.mask if acct else None,
-                "institution_name": t.institution_name,
-                "budget_sub_category": t.budget_sub_category,
-                "budget_category": bc.category if bc else None,
-                "created_at": t.created_at.isoformat() if t.created_at else None,
-                "pending": t.pending,
-            })
-        groups.append({
-            "date": d,
-            "amount": amt,
-            "name": name,
-            "copies": len(rows),
-            "transactions": rows,
-        })
-
-    groups.sort(key=lambda g: g["date"], reverse=True)
-    return groups
 
 
 # ---------------------------------------------------------------------------
