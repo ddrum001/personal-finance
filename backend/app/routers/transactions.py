@@ -20,6 +20,8 @@ def list_transactions(
     end_date: Optional[date] = Query(None),
     category: Optional[str] = Query(None),
     budget_sub_category: Optional[str] = Query(None),
+    budget_category: Optional[str] = Query(None),
+    budget_macro_category: Optional[str] = Query(None),
     account_id: Optional[str] = Query(None),
     needs_review: Optional[bool] = Query(None),
     needs_splits: Optional[bool] = Query(None),
@@ -39,6 +41,14 @@ def list_transactions(
         )
     if budget_sub_category:
         q = q.filter(Transaction.budget_sub_category == budget_sub_category)
+    if budget_category or budget_macro_category:
+        cat_ids = db.query(BudgetCategory.sub_category)
+        if budget_category:
+            cat_ids = cat_ids.filter(BudgetCategory.category == budget_category)
+        if budget_macro_category:
+            cat_ids = cat_ids.filter(BudgetCategory.macro_category == budget_macro_category)
+        sub_cats = [r[0] for r in cat_ids.all()]
+        q = q.filter(Transaction.budget_sub_category.in_(sub_cats))
     if account_id:
         q = q.filter(Transaction.account_id == account_id)
     excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}

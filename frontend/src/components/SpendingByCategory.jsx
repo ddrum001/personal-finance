@@ -62,17 +62,18 @@ export default function SpendingByCategory({ startDate, endDate }) {
 
   // Reset drill when base level or date range changes
   useEffect(() => { setDrillPath([]); setSelectedCategory(null) }, [baseLevel, startDate, endDate])
-  // Clear selected category when drill path changes (navigating up)
-  useEffect(() => { setSelectedCategory(null) }, [drillPath])
 
   // Fetch recent transactions for selected category
-  // selectedCategory is { label, budgetSubCategory } at sub_category level, or string at others
   useEffect(() => {
     if (!selectedCategory) { setDrillTxns([]); return }
     setDrillTxnsLoading(true)
     const params = { startDate, endDate, limit: 10 }
-    if (selectedCategory.budgetSubCategory) {
-      params.budgetSubCategory = selectedCategory.budgetSubCategory
+    if (selectedCategory.groupBy === 'sub_category') {
+      params.budgetSubCategory = selectedCategory.label
+    } else if (selectedCategory.groupBy === 'category') {
+      params.budgetCategory = selectedCategory.label
+    } else if (selectedCategory.groupBy === 'macro_category') {
+      params.budgetMacroCategory = selectedCategory.label
     }
     getTransactions(params)
       .then(setDrillTxns)
@@ -82,14 +83,16 @@ export default function SpendingByCategory({ startDate, endDate }) {
 
   const handleBarClick = (entry) => {
     if (!entry) return
-    // Always show transactions for clicked bar
-    const cat = { label: entry.category, budgetSubCategory: groupBy === 'sub_category' ? entry.category : null }
-    setSelectedCategory(prev => prev?.label === entry.category ? null : cat)
-    // Also drill down if possible
-    if (canDrill) {
-      const type = groupBy === 'macro_category' ? 'macro' : 'category'
-      setDrillPath(prev => [...prev, { type, value: entry.category }])
-    }
+    // Show transactions for clicked bar — store which groupBy level was active
+    const cat = { label: entry.category, groupBy }
+    setSelectedCategory(prev => prev?.label === entry.category && prev?.groupBy === groupBy ? null : cat)
+  }
+
+  const handleDrill = (entry) => {
+    if (!entry || !canDrill) return
+    const type = groupBy === 'macro_category' ? 'macro' : 'category'
+    setSelectedCategory(null)
+    setDrillPath(prev => [...prev, { type, value: entry.category }])
   }
 
   const handleBaseLevel = (level) => {
@@ -144,8 +147,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
               ← Back
             </button>
           )}
-          {canDrill && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to drill down</span>}
-          {!canDrill && !selectedCategory && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to see recent transactions</span>}
+          {!selectedCategory && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to see recent transactions{canDrill ? ' · click label to drill down' : ''}</span>}
           {data.some(d => d.category === 'Uncategorized') && (
             <button
               onClick={() => setShowUncategorized(s => !s)}
@@ -198,8 +200,19 @@ export default function SpendingByCategory({ startDate, endDate }) {
               type="category"
               dataKey="category"
               width={140}
-              tick={{ fontSize: 12 }}
-              tickFormatter={(v) => v.length > 20 ? v.slice(0, 18) + '…' : v}
+              tick={canDrill
+                ? ({ x, y, payload }) => {
+                    const label = payload.value.length > 18 ? payload.value.slice(0, 16) + '…' : payload.value
+                    return (
+                      <text
+                        x={x} y={y} dy={4} textAnchor="end" fontSize={12}
+                        fill="#6366f1" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => handleDrill({ category: payload.value })}
+                      >{label}</text>
+                    )
+                  }
+                : { fontSize: 12 }
+              }
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar

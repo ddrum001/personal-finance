@@ -70,12 +70,14 @@ export async function deleteItem(itemId) {
   return res.json()
 }
 
-export async function getTransactions({ startDate, endDate, category, budgetSubCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
+export async function getTransactions({ startDate, endDate, category, budgetSubCategory, budgetCategory, budgetMacroCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)
   if (endDate) params.set('end_date', endDate)
   if (category) params.set('category', category)
   if (budgetSubCategory) params.set('budget_sub_category', budgetSubCategory)
+  if (budgetCategory) params.set('budget_category', budgetCategory)
+  if (budgetMacroCategory) params.set('budget_macro_category', budgetMacroCategory)
   if (accountId) params.set('account_id', accountId)
   if (needsReview != null) params.set('needs_review', needsReview)
   if (needsSplits != null) params.set('needs_splits', needsSplits)
