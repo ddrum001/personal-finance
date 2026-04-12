@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import json
 
 from ..database import get_db
-from ..models import AmazonOrder, Transaction, TransactionSplit, BudgetCategory, Account, PlaidItem, MerchantSplitTemplate
+from ..models import AmazonOrder, Transaction, TransactionSplit, BudgetCategory, Account, PlaidItem, MerchantSplitTemplate, DismissedDuplicateGroup
 from ..schemas import TransactionOut, CategoryUpdate, SplitRequest, SplitOut
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -174,6 +174,11 @@ def find_duplicates(db: Session = Depends(get_db), days: int = 3):
             "pending": t.pending,
         }
 
+    dismissed = {
+        frozenset(json.loads(g.transaction_ids))
+        for g in db.query(DismissedDuplicateGroup).all()
+    }
+
     groups = []
     seen = set()
 
@@ -191,6 +196,11 @@ def find_duplicates(db: Session = Depends(get_db), days: int = 3):
                 if candidate.transaction_id not in seen:
                     cluster.append(candidate)
             if len(cluster) > 1:
+                cluster_key = frozenset(t.transaction_id for t in cluster)
+                if cluster_key in dismissed:
+                    for t in cluster:
+                        seen.add(t.transaction_id)
+                    continue
                 for t in cluster:
                     seen.add(t.transaction_id)
                 groups.append({
@@ -203,6 +213,19 @@ def find_duplicates(db: Session = Depends(get_db), days: int = 3):
 
     groups.sort(key=lambda g: g["date"], reverse=True)
     return groups
+
+
+class DismissDuplicatesRequest(BaseModel):
+    transaction_ids: list[str]
+
+
+@router.post("/duplicates/dismiss")
+def dismiss_duplicate_group(body: DismissDuplicatesRequest, db: Session = Depends(get_db)):
+    """Mark a group of transactions as not-duplicates so they're hidden from future checks."""
+    group = DismissedDuplicateGroup(transaction_ids=json.dumps(sorted(body.transaction_ids)))
+    db.add(group)
+    db.commit()
+    return {"ok": True}
 
 
 @router.patch("/{transaction_id}/reviewed")

@@ -154,6 +154,15 @@ class TransactionSplit(Base):
     transaction = relationship("Transaction", back_populates="splits")
 
 
+class DismissedDuplicateGroup(Base):
+    """Tracks groups of transactions dismissed as non-duplicates so they're hidden from future checks."""
+    __tablename__ = "dismissed_duplicate_groups"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    transaction_ids = Column(Text, nullable=False)  # JSON: sorted list of transaction IDs
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class PromoBalance(Base):
     """Tracks 0%-interest promotional balances that must be paid off by a deadline."""
     __tablename__ = "promo_balances"
