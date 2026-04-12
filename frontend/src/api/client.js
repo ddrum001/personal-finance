@@ -76,6 +76,16 @@ export async function getDuplicateTransactions() {
   return res.json()
 }
 
+export async function dismissDuplicateGroup(transactionIds) {
+  const res = await fetch(`${BASE}/transactions/duplicates/dismiss`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transaction_ids: transactionIds }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function deleteTransaction(transactionId) {
   const res = await fetch(`${BASE}/transactions/${transactionId}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(await res.text())
