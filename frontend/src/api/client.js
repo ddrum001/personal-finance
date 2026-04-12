@@ -70,6 +70,17 @@ export async function deleteItem(itemId) {
   return res.json()
 }
 
+export async function getDuplicateTransactions() {
+  const res = await fetch(`${BASE}/transactions/duplicates`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
+export async function deleteTransaction(transactionId) {
+  const res = await fetch(`${BASE}/transactions/${transactionId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await res.text())
+}
+
 export async function getTransactions({ startDate, endDate, category, budgetSubCategory, budgetCategory, budgetMacroCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)

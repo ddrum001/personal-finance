@@ -11,6 +11,7 @@ import CreditCardsTab from './components/CreditCardsTab'
 import ImportCsvModal from './components/ImportCsvModal'
 import AccountsTab from './components/AccountsTab'
 import AmazonTab from './components/AmazonTab'
+import DuplicatesView from './components/DuplicatesView'
 import Login from './components/Login'
 import HelpModal from './components/HelpModal'
 
@@ -37,6 +38,7 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
   const [splitQueueMode, setSplitQueueMode] = useState(false)
+  const [duplicatesMode, setDuplicatesMode] = useState(false)
   const [txnOffset, setTxnOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const PAGE_SIZE = 500
@@ -159,7 +161,7 @@ export default function App() {
           {tab === 'transactions' && (
             <>
               <button
-                onClick={() => { setReviewMode(r => !r); setSplitQueueMode(false) }}
+                onClick={() => { setReviewMode(r => !r); setSplitQueueMode(false); setDuplicatesMode(false) }}
                 style={{
                   padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
                   cursor: 'pointer', border: '1px solid',
@@ -171,7 +173,7 @@ export default function App() {
                 {reviewMode ? '⚠ Needs Review' : 'Needs Review'}
               </button>
               <button
-                onClick={() => { setSplitQueueMode(s => !s); setReviewMode(false) }}
+                onClick={() => { setSplitQueueMode(s => !s); setReviewMode(false); setDuplicatesMode(false) }}
                 style={{
                   padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
                   cursor: 'pointer', border: '1px solid',
@@ -181,6 +183,18 @@ export default function App() {
                 }}
               >
                 {splitQueueMode ? '✂ Split Queue' : 'Split Queue'}
+              </button>
+              <button
+                onClick={() => { setDuplicatesMode(d => !d); setReviewMode(false); setSplitQueueMode(false) }}
+                style={{
+                  padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
+                  cursor: 'pointer', border: '1px solid',
+                  background: duplicatesMode ? '#fef2f2' : '#fff',
+                  color: duplicatesMode ? '#dc2626' : '#555',
+                  borderColor: duplicatesMode ? '#fca5a5' : '#ddd',
+                }}
+              >
+                {duplicatesMode ? '⚠ Duplicates' : 'Duplicates'}
               </button>
             </>
           )}
@@ -203,16 +217,20 @@ export default function App() {
 
       {tab === 'transactions' && (
         <section className="card">
-          <TransactionList
-            transactions={transactions}
-            onUpdated={loadData}
-            categories={categories}
-            items={items}
-            reviewMode={reviewMode}
-            splitQueueMode={splitQueueMode}
-            hasMore={hasMore}
-            onLoadMore={loadMore}
-          />
+          {duplicatesMode ? (
+            <DuplicatesView onResolved={loadData} />
+          ) : (
+            <TransactionList
+              transactions={transactions}
+              onUpdated={loadData}
+              categories={categories}
+              items={items}
+              reviewMode={reviewMode}
+              splitQueueMode={splitQueueMode}
+              hasMore={hasMore}
+              onLoadMore={loadMore}
+            />
+          )}
         </section>
       )}
 
