@@ -209,7 +209,7 @@ export default function App() {
                   borderColor: duplicatesMode ? '#fca5a5' : '#ddd',
                 }}
               >
-                {duplicatesMode ? '⚠ Duplicates' : 'Duplicates'}
+                {duplicatesMode ? '⚠ Potential Duplicates' : 'Potential Duplicates'}
               </button>
             </>
           )}

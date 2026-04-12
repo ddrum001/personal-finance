@@ -41,13 +41,13 @@ export default function DuplicatesView({ onResolved }) {
     }
   }
 
-  if (loading) return <p className="loading-text">Scanning for duplicates…</p>
+  if (loading) return <p className="loading-text">Scanning for potential duplicates…</p>
   if (error) return <p style={{ color: '#ef4444', fontSize: 13 }}>{error}</p>
 
   if (groups.length === 0) return (
     <div className="empty-state">
       <div className="empty-state-icon">✓</div>
-      <div className="empty-state-title">No duplicates found</div>
+      <div className="empty-state-title">No potential duplicates found</div>
       <div className="empty-state-desc">All transactions appear to be unique.</div>
     </div>
   )
@@ -55,7 +55,7 @@ export default function DuplicatesView({ onResolved }) {
   return (
     <div>
       <div style={{ marginBottom: 16, fontSize: 13, color: '#555' }}>
-        Found <strong>{groups.length}</strong> duplicate group{groups.length !== 1 ? 's' : ''} ({groups.reduce((s, g) => s + g.copies - 1, 0)} extra row{groups.reduce((s, g) => s + g.copies - 1, 0) !== 1 ? 's' : ''}).
+        Found <strong>{groups.length}</strong> potential duplicate group{groups.length !== 1 ? 's' : ''} ({groups.reduce((s, g) => s + g.copies - 1, 0)} extra row{groups.reduce((s, g) => s + g.copies - 1, 0) !== 1 ? 's' : ''}).
         Delete the entry you want to remove — typically the older one or the one from the wrong account.
       </div>
 
