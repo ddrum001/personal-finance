@@ -41,12 +41,14 @@ export default function DuplicatesView({ onResolved }) {
     }
   }
 
-  if (loading) return <p style={{ color: '#aaa', fontSize: 13, padding: '20px 0' }}>Scanning for duplicates…</p>
+  if (loading) return <p className="loading-text">Scanning for duplicates…</p>
   if (error) return <p style={{ color: '#ef4444', fontSize: 13 }}>{error}</p>
 
   if (groups.length === 0) return (
-    <div style={{ textAlign: 'center', padding: '40px 0', color: '#888', fontSize: 14 }}>
-      No duplicate transactions found.
+    <div className="empty-state">
+      <div className="empty-state-icon">✓</div>
+      <div className="empty-state-title">No duplicates found</div>
+      <div className="empty-state-desc">All transactions appear to be unique.</div>
     </div>
   )
 
@@ -100,20 +102,11 @@ export default function DuplicatesView({ onResolved }) {
                       ) : confirming === t.transaction_id ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: 11, color: '#374151' }}>Sure?</span>
-                          <button
-                            onClick={() => handleDelete(t.transaction_id)}
-                            style={{ padding: '3px 8px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}
-                          >Yes</button>
-                          <button
-                            onClick={() => setConfirming(null)}
-                            style={{ padding: '3px 8px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}
-                          >No</button>
+                          <button onClick={() => handleDelete(t.transaction_id)} className="btn btn-danger btn-sm">Yes</button>
+                          <button onClick={() => setConfirming(null)} className="btn btn-ghost btn-sm">No</button>
                         </span>
                       ) : (
-                        <button
-                          onClick={() => setConfirming(t.transaction_id)}
-                          style={{ padding: '3px 10px', background: 'none', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', fontSize: 11, color: '#ef4444', fontWeight: 600 }}
-                        >
+                        <button onClick={() => setConfirming(t.transaction_id)} className="btn btn-ghost-danger btn-sm">
                           Delete
                         </button>
                       )}

@@ -117,19 +117,10 @@ export default function App() {
       <header className="app-header">
         <h1>Personal Finance</h1>
         <div className="app-header-actions">
-          <button
-            onClick={() => setHelpOpen(true)}
-            style={{ padding: '8px 12px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}
-            title="Help"
-          >?</button>
-          <button
-            onClick={handleLogout}
-            style={{ padding: '8px 16px', background: '#fff', color: '#888', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
-          >
-            Sign out
-          </button>
+          <button onClick={() => setHelpOpen(true)} className="btn btn-ghost-accent" title="Help">?</button>
+          <button onClick={handleLogout} className="btn btn-ghost">Sign out</button>
           {items.length > 0 && (
-            <button onClick={handleSync} disabled={syncing} style={{ padding: '8px 16px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+            <button onClick={handleSync} disabled={syncing} className="btn btn-primary">
               {syncing ? 'Syncing…' : 'Sync All'}
             </button>
           )}
@@ -152,12 +143,8 @@ export default function App() {
                 return (
                   <button
                     key={group}
-                    className="nav-tab"
+                    className={`nav-tab${isActive ? ' active' : ''}`}
                     onClick={() => { if (!isActive) switchTab(tabs[0]) }}
-                    style={{
-                      color: isActive ? '#6366f1' : '#555',
-                      borderBottom: isActive ? '2px solid #6366f1' : '2px solid transparent',
-                    }}
                   >
                     {group}
                   </button>
@@ -169,12 +156,8 @@ export default function App() {
                 {activeGroup.tabs.map((t) => (
                   <button
                     key={t}
-                    className="sub-tab"
+                    className={`sub-tab${tab === t ? ' active' : ''}`}
                     onClick={() => switchTab(t)}
-                    style={{
-                      color: tab === t ? '#6366f1' : '#777',
-                      borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
-                    }}
                   >
                     {t.charAt(0).toUpperCase() + t.slice(1)}
                   </button>

@@ -240,7 +240,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
               <button
                 onClick={handleAcceptAllSuggestions}
                 disabled={markingAll}
-                style={{ padding: '5px 14px', background: '#15803d', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                className="btn btn-success btn-sm"
               >
                 {markingAll ? 'Accepting…' : `Accept all ${suggested.length} remaining suggestions`}
               </button>
@@ -283,8 +283,8 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   {editing === t.transaction_id ? (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <CategorySelect value={newBudgetSubCategory} onChange={setNewBudgetSubCategory} categories={categories || []} />
-                      <button onClick={() => handleSave(t.transaction_id)} style={btnStyle('#6366f1')}>Save</button>
-                      <button onClick={cancelEdit} style={btnStyle('#888')}>Cancel</button>
+                      <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
+                      <button onClick={cancelEdit} className="btn btn-muted btn-sm">Cancel</button>
                     </div>
                   ) : (
                     <>
@@ -292,9 +292,9 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                         {t.budget_sub_category}
                       </span>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => handleMarkReviewed(t)} style={btnStyle('#15803d')}>✓ Accept</button>
-                        <button onClick={() => startEdit(t)} style={btnStyleOutline('#6366f1')}>Change</button>
-                        <button onClick={() => handleRejectSuggestion(t)} style={btnStyleOutline('#dc2626')} title="Wrong category — move to Needs Category">✗ Defer</button>
+                        <button onClick={() => handleMarkReviewed(t)} className="btn btn-success btn-sm">✓ Accept</button>
+                        <button onClick={() => startEdit(t)} className="btn btn-ghost-accent btn-sm">Change</button>
+                        <button onClick={() => handleRejectSuggestion(t)} className="btn btn-ghost-danger btn-sm" title="Wrong category — move to Needs Category">✗ Defer</button>
                       </div>
                     </>
                   )}
@@ -339,7 +339,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       placeholder="Pick a category…"
                     />
                     {editing === t.transaction_id && newBudgetSubCategory && (
-                      <button onClick={() => handleSave(t.transaction_id)} style={btnStyle('#6366f1')}>Save</button>
+                      <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
                     )}
                   </div>
                 </div>
@@ -353,7 +353,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
       <div className="txn-table-wrap">
         <table className="txn-table">
           <thead>
-            <tr style={{ background: '#e8eaf6' }}>
+            <tr>
               {['Date', 'Merchant', 'Amount', 'Category', 'Actions'].map((h) => (
                 <th key={h}>{h}</th>
               ))}
@@ -393,16 +393,16 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       <div style={{ display: 'flex', gap: 4 }}>
                         {editing === t.transaction_id ? (
                           <>
-                            <button onClick={() => handleSave(t.transaction_id)} style={btnStyle('#6366f1')}>Save</button>
-                            <button onClick={cancelEdit} style={btnStyle('#888')}>Cancel</button>
+                            <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
+                            <button onClick={cancelEdit} className="btn btn-muted btn-sm">Cancel</button>
                           </>
                         ) : (
                           <>
                             {t._justReviewed && (
-                              <button onClick={() => handleUndoReviewed(t.transaction_id)} style={btnStyle('#6b7280')} title="Undo — re-flag for review">↩ Undo</button>
+                              <button onClick={() => handleUndoReviewed(t.transaction_id)} className="btn btn-muted btn-sm" title="Undo — re-flag for review">↩ Undo</button>
                             )}
-                            {!hasSplits && <button onClick={() => startEdit(t)} style={btnStyle('#6366f1')}>Relabel</button>}
-                            <button onClick={() => setSplitting(t)} style={btnStyle('#f59e0b')}>{hasSplits ? 'Edit Splits' : 'Split'}</button>
+                            {!hasSplits && <button onClick={() => startEdit(t)} className="btn btn-primary btn-sm">Relabel</button>}
+                            <button onClick={() => setSplitting(t)} className="btn btn-warning btn-sm">{hasSplits ? 'Edit Splits' : 'Split'}</button>
                           </>
                         )}
                       </div>
@@ -491,16 +491,16 @@ export default function TransactionList({ transactions, onUpdated, categories, r
               <div className="txn-card-actions" style={{ marginTop: 8 }}>
                 {editing === t.transaction_id ? (
                   <>
-                    <button onClick={() => handleSave(t.transaction_id)} style={btnStyle('#6366f1')}>Save</button>
-                    <button onClick={cancelEdit} style={btnStyle('#888')}>Cancel</button>
+                    <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
+                    <button onClick={cancelEdit} className="btn btn-muted btn-sm">Cancel</button>
                   </>
                 ) : (
                   <>
                     {t._justReviewed && (
-                      <button onClick={() => handleUndoReviewed(t.transaction_id)} style={btnStyle('#6b7280')} title="Undo — re-flag for review">↩ Undo</button>
+                      <button onClick={() => handleUndoReviewed(t.transaction_id)} className="btn btn-muted btn-sm" title="Undo — re-flag for review">↩ Undo</button>
                     )}
-                    {!hasSplits && <button onClick={() => startEdit(t)} style={btnStyle('#6366f1')}>Relabel</button>}
-                    <button onClick={() => setSplitting(t)} style={btnStyle('#f59e0b')}>{hasSplits ? 'Edit Splits' : 'Split'}</button>
+                    {!hasSplits && <button onClick={() => startEdit(t)} className="btn btn-primary btn-sm">Relabel</button>}
+                    <button onClick={() => setSplitting(t)} className="btn btn-warning btn-sm">{hasSplits ? 'Edit Splits' : 'Split'}</button>
                   </>
                 )}
               </div>
@@ -509,12 +509,22 @@ export default function TransactionList({ transactions, onUpdated, categories, r
         })}
       </div>
 
+      {visible.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state-icon">📄</div>
+          <div className="empty-state-title">No transactions found</div>
+          <div className="empty-state-desc">
+            {selectedInstitution || selectedAccount || amazonFilter
+              ? 'Try clearing the filters above'
+              : reviewMode ? 'All caught up — nothing needs review'
+              : 'Adjust the date range or connect an account'}
+          </div>
+        </div>
+      )}
+
       {hasMore && (
         <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <button
-            onClick={onLoadMore}
-            style={{ padding: '10px 28px', background: '#fff', color: '#6366f1', border: '1px solid #6366f1', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-          >
+          <button onClick={onLoadMore} className="btn btn-ghost-accent btn-lg">
             Load more transactions
           </button>
         </div>
@@ -609,10 +619,3 @@ function AmazonOrderPanel({ order, onUnlink }) {
   )
 }
 
-function btnStyle(bg) {
-  return { padding: '4px 10px', background: bg, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }
-}
-
-function btnStyleOutline(color) {
-  return { padding: '4px 10px', background: '#fff', color, border: `1px solid ${color}`, borderRadius: 4, cursor: 'pointer', fontSize: 12 }
-}

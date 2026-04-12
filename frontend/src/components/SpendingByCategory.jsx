@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts'
 import { getCategoryBreakdown, getTransactions } from '../api/client'
 
-const COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16','#a78bfa','#34d399','#fbbf24','#60a5fa','#f472b6']
+const COLORS = ['#6366f1','#10b981','#f59e0b','#f43f5e','#06b6d4','#a855f7','#f97316','#84cc16']
 
 const LEVELS = [
   { value: 'macro_category', label: 'Macro' },
@@ -179,7 +179,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
       )}
 
       {loading ? (
-        <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+        <p className="loading-text">Loading chart…</p>
       ) : (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
@@ -233,7 +233,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
             <button onClick={() => setSelectedCategory(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
           </div>
           {drillTxnsLoading ? (
-            <p style={{ color: '#aaa', fontSize: 13 }}>Loading…</p>
+            <p className="loading-text">Loading transactions…</p>
           ) : drillTxns.length === 0 ? (
             <p style={{ color: '#aaa', fontSize: 13 }}>No transactions found.</p>
           ) : (
