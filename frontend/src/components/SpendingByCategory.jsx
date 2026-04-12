@@ -83,16 +83,13 @@ export default function SpendingByCategory({ startDate, endDate }) {
 
   const handleBarClick = (entry) => {
     if (!entry) return
-    // Show transactions for clicked bar — store which groupBy level was active
     const cat = { label: entry.category, groupBy }
-    setSelectedCategory(prev => prev?.label === entry.category && prev?.groupBy === groupBy ? null : cat)
-  }
-
-  const handleDrill = (entry) => {
-    if (!entry || !canDrill) return
-    const type = groupBy === 'macro_category' ? 'macro' : 'category'
-    setSelectedCategory(null)
-    setDrillPath(prev => [...prev, { type, value: entry.category }])
+    const toggling = selectedCategory?.label === entry.category && selectedCategory?.groupBy === groupBy
+    setSelectedCategory(toggling ? null : cat)
+    if (!toggling && canDrill) {
+      const type = groupBy === 'macro_category' ? 'macro' : 'category'
+      setDrillPath(prev => [...prev, { type, value: entry.category }])
+    }
   }
 
   const handleBaseLevel = (level) => {
@@ -147,7 +144,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
               ← Back
             </button>
           )}
-          {!selectedCategory && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to see recent transactions{canDrill ? ' · click label to drill down' : ''}</span>}
+          {!selectedCategory && <span style={{ fontSize: 12, color: '#888' }}>Click a bar to {canDrill ? 'drill down and see recent transactions' : 'see recent transactions'}</span>}
           {data.some(d => d.category === 'Uncategorized') && (
             <button
               onClick={() => setShowUncategorized(s => !s)}
@@ -200,19 +197,8 @@ export default function SpendingByCategory({ startDate, endDate }) {
               type="category"
               dataKey="category"
               width={140}
-              tick={canDrill
-                ? ({ x, y, payload }) => {
-                    const label = payload.value.length > 18 ? payload.value.slice(0, 16) + '…' : payload.value
-                    return (
-                      <text
-                        x={x} y={y} dy={4} textAnchor="end" fontSize={12}
-                        fill="#6366f1" style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                        onClick={() => handleDrill({ category: payload.value })}
-                      >{label}</text>
-                    )
-                  }
-                : { fontSize: 12 }
-              }
+              tick={{ fontSize: 12 }}
+              tickFormatter={(v) => v.length > 20 ? v.slice(0, 18) + '…' : v}
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar
