@@ -217,7 +217,7 @@ function ScheduleConflictModal({ proposed, existing, onReplace, onAdd, onClose }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Payment already scheduled</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Payment already planned</h2>
         <p style={{ fontSize: 13, color: '#555', marginBottom: 12 }}>
           There's already a cashflow entry for this card:
         </p>
@@ -460,7 +460,7 @@ export default function CreditCardsTab() {
         setConflictModal({ proposed: result.proposed, existing: result.existing, accountId })
       } else {
         await confirmSchedulePayment(accountId, 'add')
-        showToast('Payment scheduled in Cashflow')
+        showToast('Payment planned in Cashflow')
       }
     } catch (e) { setError(e.message) }
   }
@@ -479,7 +479,7 @@ export default function CreditCardsTab() {
     setConflictModal(null)
     try {
       await confirmSchedulePayment(accountId, 'add')
-      showToast('Second payment scheduled in Cashflow')
+      showToast('Second payment planned in Cashflow')
     } catch (e) { setError(e.message) }
   }
 
@@ -641,7 +641,7 @@ export default function CreditCardsTab() {
                           onClick={() => handleSchedulePayment(card.account_id)}
                           style={{ padding: '5px 12px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
                         >
-                          Schedule Payment
+                          Plan Payment
                         </button>
                       )}
                       {card.liabilities_updated_at && (
