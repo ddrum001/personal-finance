@@ -57,7 +57,7 @@ export default function DateFilter({ filter, onChange }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
       {/* Mode pills */}
-      <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'auto', flexWrap: 'wrap' }}>
         {[
           { value: 'last90', label: 'Last 90d' },
           { value: 'last30', label: 'Last 30d' },

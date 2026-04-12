@@ -237,7 +237,8 @@ export default function SpendingByCategory({ startDate, endDate }) {
           ) : drillTxns.length === 0 ? (
             <p style={{ color: '#aaa', fontSize: 13 }}>No transactions found.</p>
           ) : (
-            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 360 }}>
               <thead>
                 <tr style={{ color: '#888', fontWeight: 600, borderBottom: '1px solid #e5e7eb' }}>
                   <th style={{ textAlign: 'left', paddingBottom: 6 }}>Date</th>
@@ -259,6 +260,7 @@ export default function SpendingByCategory({ startDate, endDate }) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

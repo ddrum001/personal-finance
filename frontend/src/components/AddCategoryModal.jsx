@@ -121,7 +121,7 @@ export default function AddCategoryModal({ hierarchy, prefillMacro, prefillCateg
         {/* ── Flags ── */}
         <fieldset style={fieldset}>
           <legend style={legend}>Flags</legend>
-          <div style={{ display: 'flex', gap: 24 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <Toggle label="Discretionary" checked={isDiscretionary} onChange={setIsDiscretionary} color="#1e40af" bg="#dbeafe" />
             <Toggle label="Recurring" checked={isRecurring} onChange={setIsRecurring} color="#166534" bg="#dcfce7" />
           </div>

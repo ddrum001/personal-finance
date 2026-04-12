@@ -253,56 +253,48 @@ export default function CashflowTab() {
                 No entries yet — click "+ Add Entry" to get started.
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={thStyle}>Name</th>
-                    <th style={thStyle}>Date</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
-                    <th style={thStyle}>Recurrence</th>
-                    <th style={thStyle}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((e) => (
-                    <tr key={e.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={tdStyle}>
-                        <div style={{ fontWeight: 500 }}>{e.name}</div>
-                        {e.notes && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{e.notes}</div>}
-                      </td>
-                      <td style={tdStyle}>{fmtDate(e.date)}</td>
-                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: e.amount >= 0 ? '#16a34a' : '#dc2626' }}>
-                        {e.amount >= 0 ? '+' : ''}{fmtFull(e.amount)}
-                      </td>
-                      <td style={{ ...tdStyle, color: '#888' }}>
-                        {e.is_recurring && e.recurrence ? (
-                          <span style={{ background: '#f3f4f6', borderRadius: 12, padding: '2px 8px', fontSize: 11 }}>
-                            {e.recurrence}
-                            {e.recurrence_end_date ? ` until ${fmtDate(e.recurrence_end_date)}` : ''}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#ccc', fontSize: 11 }}>one-time</span>
-                        )}
-                      </td>
-                      <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                        <button
-                          onClick={() => setModal(e)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: 12, fontWeight: 600, padding: '2px 6px' }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(e.id)}
-                          disabled={deletingId === e.id}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 12, fontWeight: 600, padding: '2px 6px' }}
-                        >
-                          {deletingId === e.id ? '…' : 'Delete'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+                {entries.map((e, idx) => (
+                  <div key={e.id} style={{
+                    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 12px',
+                    padding: '10px 12px', fontSize: 13,
+                    borderTop: idx > 0 ? '1px solid #f3f4f6' : 'none',
+                  }}>
+                    <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{e.name}</div>
+                      {e.notes && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{e.notes}</div>}
+                    </div>
+                    <span style={{ color: '#888', whiteSpace: 'nowrap' }}>{fmtDate(e.date)}</span>
+                    <span style={{ fontWeight: 600, whiteSpace: 'nowrap', color: e.amount >= 0 ? '#16a34a' : '#dc2626' }}>
+                      {e.amount >= 0 ? '+' : ''}{fmtFull(e.amount)}
+                    </span>
+                    <span>
+                      {e.is_recurring && e.recurrence ? (
+                        <span style={{ background: '#f3f4f6', borderRadius: 12, padding: '2px 8px', fontSize: 11, whiteSpace: 'nowrap' }}>
+                          {e.recurrence}{e.recurrence_end_date ? ` until ${fmtDate(e.recurrence_end_date)}` : ''}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#ccc', fontSize: 11 }}>one-time</span>
+                      )}
+                    </span>
+                    <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+                      <button
+                        onClick={() => setModal(e)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6366f1', fontSize: 12, fontWeight: 600, padding: '2px 8px' }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(e.id)}
+                        disabled={deletingId === e.id}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 12, fontWeight: 600, padding: '2px 8px' }}
+                      >
+                        {deletingId === e.id ? '…' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -312,7 +304,8 @@ export default function CashflowTab() {
               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#374151' }}>
                 Projected Cashflow
               </h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 400 }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
                     <th style={thStyle}>Name</th>
@@ -360,6 +353,7 @@ export default function CashflowTab() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>
