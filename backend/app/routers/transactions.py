@@ -142,45 +142,64 @@ def list_transactions(
 
 
 @router.get("/duplicates")
-def find_duplicates(db: Session = Depends(get_db)):
-    """Return groups of transactions that share the same date, amount, and name."""
-    from sqlalchemy import func as sqlfunc
-    dup_keys = (
-        db.query(Transaction.date, Transaction.amount, Transaction.name)
-        .group_by(Transaction.date, Transaction.amount, Transaction.name)
-        .having(sqlfunc.count(Transaction.transaction_id) > 1)
+def find_duplicates(db: Session = Depends(get_db), days: int = 3):
+    """Return groups of transactions that share the same amount and name within a date window."""
+    from datetime import timedelta
+    from itertools import groupby
+
+    all_txns = (
+        db.query(Transaction)
+        .order_by(Transaction.amount, Transaction.name, Transaction.date)
         .all()
     )
-    if not dup_keys:
+    if not all_txns:
         return []
 
     cat_map = {c.sub_category: c for c in db.query(BudgetCategory).all()}
     acct_map = {a.account_id: a for a in db.query(Account).all()}
 
+    def make_row(t):
+        acct = acct_map.get(t.account_id)
+        bc = cat_map.get(t.budget_sub_category)
+        return {
+            "transaction_id": t.transaction_id,
+            "date": t.date.isoformat() if t.date else None,
+            "account_id": t.account_id,
+            "account_name": (acct.nickname or acct.name) if acct else None,
+            "account_mask": acct.mask if acct else None,
+            "institution_name": t.institution_name,
+            "budget_sub_category": t.budget_sub_category,
+            "budget_category": bc.category if bc else None,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "pending": t.pending,
+        }
+
     groups = []
-    for d, amt, name in dup_keys:
-        txns = (
-            db.query(Transaction)
-            .filter(Transaction.date == d, Transaction.amount == amt, Transaction.name == name)
-            .order_by(Transaction.created_at)
-            .all()
-        )
-        rows = []
-        for t in txns:
-            acct = acct_map.get(t.account_id)
-            bc = cat_map.get(t.budget_sub_category)
-            rows.append({
-                "transaction_id": t.transaction_id,
-                "account_id": t.account_id,
-                "account_name": (acct.nickname or acct.name) if acct else None,
-                "account_mask": acct.mask if acct else None,
-                "institution_name": t.institution_name,
-                "budget_sub_category": t.budget_sub_category,
-                "budget_category": bc.category if bc else None,
-                "created_at": t.created_at.isoformat() if t.created_at else None,
-                "pending": t.pending,
-            })
-        groups.append({"date": d, "amount": amt, "name": name, "copies": len(rows), "transactions": rows})
+    seen = set()
+
+    for (amt, name), txns_iter in groupby(all_txns, key=lambda t: (t.amount, t.name)):
+        txns = list(txns_iter)  # already sorted by date within this amount+name bucket
+        for i, anchor in enumerate(txns):
+            if anchor.transaction_id in seen:
+                continue
+            cluster = [anchor]
+            cutoff = anchor.date + timedelta(days=days)
+            for j in range(i + 1, len(txns)):
+                candidate = txns[j]
+                if candidate.date > cutoff:
+                    break
+                if candidate.transaction_id not in seen:
+                    cluster.append(candidate)
+            if len(cluster) > 1:
+                for t in cluster:
+                    seen.add(t.transaction_id)
+                groups.append({
+                    "date": anchor.date,
+                    "amount": amt,
+                    "name": name,
+                    "copies": len(cluster),
+                    "transactions": [make_row(t) for t in cluster],
+                })
 
     groups.sort(key=lambda g: g["date"], reverse=True)
     return groups
