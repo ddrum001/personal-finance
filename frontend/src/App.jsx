@@ -138,18 +138,30 @@ export default function App() {
 
 
       <nav className="nav-tabs">
-        {['dashboard', 'transactions', 'accounts', 'amazon', 'cashflow', 'credit cards', 'categories'].map((t) => (
-          <button
-            key={t}
-            className="nav-tab"
-            onClick={() => switchTab(t)}
-            style={{
-              color: tab === t ? '#6366f1' : '#555',
-              borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
-            }}
-          >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
+        {[
+          { group: 'Planning', tabs: ['dashboard', 'cashflow'] },
+          { group: 'Tracking', tabs: ['transactions', 'amazon'] },
+          { group: 'Setup',    tabs: ['accounts', 'credit cards', 'categories'] },
+        ].map(({ group, tabs }, gi) => (
+          <div key={group} className="nav-group">
+            {gi > 0 && <div className="nav-group-divider" />}
+            <div className="nav-group-label">{group}</div>
+            <div className="nav-group-tabs">
+              {tabs.map((t) => (
+                <button
+                  key={t}
+                  className="nav-tab"
+                  onClick={() => switchTab(t)}
+                  style={{
+                    color: tab === t ? '#6366f1' : '#555',
+                    borderBottom: tab === t ? '2px solid #6366f1' : '2px solid transparent',
+                  }}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

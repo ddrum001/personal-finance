@@ -17,15 +17,43 @@ body { font-family: system-ui, sans-serif; background: #f5f7fa; color: #1a1a2e; 
 /* ── Nav tabs ── */
 .nav-tabs {
   display: flex;
+  align-items: flex-end;
   margin-bottom: 24px;
   border-bottom: 2px solid #e8eaf6;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  gap: 0;
 }
 .nav-tabs::-webkit-scrollbar { display: none; }
+.nav-group {
+  display: flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+.nav-group-divider {
+  width: 1px;
+  height: 28px;
+  background: #e5e7eb;
+  margin: 0 4px 6px;
+  flex-shrink: 0;
+}
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  padding: 0 8px 8px;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+.nav-group-tabs {
+  display: flex;
+  align-items: flex-end;
+}
 .nav-tab {
-  padding: 10px 20px;
+  padding: 10px 16px;
   border: none;
   background: none;
   cursor: pointer;
