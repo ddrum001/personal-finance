@@ -12,6 +12,7 @@ import ImportCsvModal from './components/ImportCsvModal'
 import AccountsTab from './components/AccountsTab'
 import AmazonTab from './components/AmazonTab'
 import DuplicatesView from './components/DuplicatesView'
+import CategoryFilter from './components/CategoryFilter'
 import Login from './components/Login'
 import HelpModal from './components/HelpModal'
 
@@ -39,6 +40,7 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState(false)
   const [splitQueueMode, setSplitQueueMode] = useState(false)
   const [duplicatesMode, setDuplicatesMode] = useState(false)
+  const [catFilter, setCatFilter] = useState({ macro: null, category: null, sub: null })
   const [txnOffset, setTxnOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const PAGE_SIZE = 500
@@ -63,13 +65,22 @@ export default function App() {
 
   const { startDate, endDate } = getDateRange(filter)
 
+  // Resolve the deepest active category filter level into a single API param
+  const catParams = catFilter.sub
+    ? { budgetSubCategory: catFilter.sub }
+    : catFilter.category
+    ? { budgetCategory: catFilter.category }
+    : catFilter.macro
+    ? { budgetMacroCategory: catFilter.macro }
+    : {}
+
   const loadData = useCallback(async () => {
     if (!user) return
     const params = reviewMode
       ? { needsReview: true, limit: 2000 }
       : splitQueueMode
       ? { needsSplits: true }
-      : { startDate, endDate, limit: PAGE_SIZE, offset: 0 }
+      : { startDate, endDate, limit: PAGE_SIZE, offset: 0, ...catParams }
     const [txns, linkedItems] = await Promise.all([
       getTransactions(params),
       listItems(),
@@ -78,15 +89,15 @@ export default function App() {
     setItems(linkedItems)
     setTxnOffset(0)
     setHasMore(!reviewMode && !splitQueueMode && txns.length === PAGE_SIZE)
-  }, [user, startDate, endDate, reviewMode, splitQueueMode])
+  }, [user, startDate, endDate, reviewMode, splitQueueMode, catFilter])
 
   const loadMore = useCallback(async () => {
     const nextOffset = txnOffset + PAGE_SIZE
-    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset })
+    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset, ...catParams })
     setTransactions(prev => [...prev, ...more])
     setTxnOffset(nextOffset)
     setHasMore(more.length === PAGE_SIZE)
-  }, [startDate, endDate, txnOffset])
+  }, [startDate, endDate, txnOffset, catFilter])
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (user) getCategories().then(setCategories).catch(console.error) }, [user])
@@ -168,13 +179,27 @@ export default function App() {
         )
       })()}
 
-      {/* Date filter + review mode toggle */}
+      {/* Date filter + category filter + mode toggles */}
       {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && tab !== 'amazon' && tab !== 'credit cards' && (
-        <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          {!reviewMode && !splitQueueMode && <DateFilter filter={filter} onChange={setFilter} />}
-          {!reviewMode && !splitQueueMode && <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>}
+        <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Row 1: date range */}
+          {!reviewMode && !splitQueueMode && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <DateFilter filter={filter} onChange={setFilter} />
+              <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>
+            </div>
+          )}
+          {/* Row 2: category filter (transactions tab, normal mode only) */}
+          {tab === 'transactions' && !reviewMode && !splitQueueMode && !duplicatesMode && (
+            <CategoryFilter
+              categories={categories}
+              value={catFilter}
+              onChange={setCatFilter}
+            />
+          )}
+          {/* Row 3: mode toggles */}
           {tab === 'transactions' && (
-            <>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={() => { setReviewMode(r => !r); setSplitQueueMode(false); setDuplicatesMode(false) }}
                 style={{
@@ -211,7 +236,7 @@ export default function App() {
               >
                 {duplicatesMode ? '⚠ Potential Duplicates' : 'Potential Duplicates'}
               </button>
-            </>
+            </div>
           )}
         </div>
       )}
