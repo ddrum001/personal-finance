@@ -324,13 +324,17 @@ export default function TransactionList({ transactions, onUpdated, categories, r
             <div style={{ fontSize: 12, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
               Suggested ({suggested.length})
             </div>
-            <div style={{ border: '1px solid #bbf7d0', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ border: '1px solid #bbf7d0', borderRadius: 8 }}>
               {suggested.map((t, idx) => (
                 <div key={t.transaction_id} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
                   borderTop: idx > 0 ? '1px solid #dcfce7' : undefined,
                   background: editing === t.transaction_id ? '#f0fdf4' : '#fff',
                   flexWrap: 'wrap',
+                  borderTopLeftRadius: idx === 0 ? 7 : undefined,
+                  borderTopRightRadius: idx === 0 ? 7 : undefined,
+                  borderBottomLeftRadius: idx === suggested.length - 1 ? 7 : undefined,
+                  borderBottomRightRadius: idx === suggested.length - 1 ? 7 : undefined,
                 }}>
                   <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
                   <div style={{ flex: 1, minWidth: 120 }}>
@@ -375,11 +379,15 @@ export default function TransactionList({ transactions, onUpdated, categories, r
             <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
               Needs Category ({uncategorized.length})
             </div>
-            <div style={{ border: '1px solid #fed7aa', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ border: '1px solid #fed7aa', borderRadius: 8 }}>
               {uncategorized.map((t, idx) => (
                 <div key={t.transaction_id} style={{
                   borderTop: idx > 0 ? '1px solid #ffedd5' : undefined,
                   background: '#fff',
+                  borderTopLeftRadius: idx === 0 ? 7 : undefined,
+                  borderTopRightRadius: idx === 0 ? 7 : undefined,
+                  borderBottomLeftRadius: idx === uncategorized.length - 1 ? 7 : undefined,
+                  borderBottomRightRadius: idx === uncategorized.length - 1 ? 7 : undefined,
                 }}>
                   {/* Main row */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', flexWrap: 'wrap' }}>
