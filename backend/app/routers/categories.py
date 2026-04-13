@@ -87,6 +87,39 @@ def delete_keyword(keyword_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@router.post("/keywords/{keyword_id}/undo")
+def undo_keyword(keyword_id: int, db: Session = Depends(get_db)):
+    """
+    Undo a keyword add: delete the keyword and revert all needs_review
+    transactions that are currently assigned to its sub_category back to
+    unlabeled (budget_sub_category = NULL, needs_review = TRUE).
+    Only reverts transactions still in needs_review so manually-accepted
+    transactions are never touched.
+    """
+    kw = db.get(CategoryKeyword, keyword_id)
+    if not kw:
+        raise HTTPException(404, "Keyword not found")
+    cat = db.get(BudgetCategory, kw.budget_category_id)
+    if not cat:
+        raise HTTPException(404, "Category not found")
+
+    sub_category = cat.sub_category
+    affected = (
+        db.query(Transaction)
+        .filter(
+            Transaction.budget_sub_category == sub_category,
+            Transaction.needs_review == True,
+        )
+        .all()
+    )
+    for txn in affected:
+        txn.budget_sub_category = None
+
+    db.delete(kw)
+    db.commit()
+    return {"reverted": len(affected)}
+
+
 # ---------------------------------------------------------------------------
 # Apply keywords to unlabeled transactions
 # ---------------------------------------------------------------------------

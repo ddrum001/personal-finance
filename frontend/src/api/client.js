@@ -243,6 +243,12 @@ export async function deleteKeyword(keywordId) {
   if (!res.ok) throw new Error(await res.text())
 }
 
+export async function undoKeyword(keywordId) {
+  const res = await fetch(`${BASE}/categories/keywords/${keywordId}/undo`, { method: 'POST' })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function createCategory(body) {
   const res = await fetch(`${BASE}/categories/`, {
     method: 'POST',

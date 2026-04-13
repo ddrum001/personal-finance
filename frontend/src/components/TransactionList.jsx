@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder, addKeyword, applyKeywords } from '../api/client'
+import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder, addKeyword, applyKeywords, undoKeyword } from '../api/client'
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
@@ -33,8 +33,9 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const [kwOpen, setKwOpen] = useState({})
   const [kwInput, setKwInput] = useState({})
   const [kwCategory, setKwCategory] = useState({})
-  const [kwStatus, setKwStatus] = useState({})  // null | 'loading' | 'success' | 'no-match' | 'conflict' | 'error'
-  const [kwCount, setKwCount] = useState({})    // labeled count from last apply run
+  const [kwStatus, setKwStatus] = useState({})     // null | 'loading' | 'success' | 'no-match' | 'conflict' | 'error' | 'undoing'
+  const [kwCount, setKwCount] = useState({})       // labeled count from last apply run
+  const [kwKeywordId, setKwKeywordId] = useState({}) // saved keyword id for undo
 
   const toggleKwOpen = (txn) => {
     const id = txn.transaction_id
@@ -56,8 +57,11 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
     setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'loading' }))
 
+    let savedKeywordId = null
     try {
-      await addKeyword(cat.id, keyword)
+      const kw = await addKeyword(cat.id, keyword)
+      savedKeywordId = kw.id
+      setKwKeywordId(prev => ({ ...prev, [txn.transaction_id]: kw.id }))
     } catch (err) {
       const msg = err.message || ''
       const isConflict = msg.includes('already') || msg.includes('409')
@@ -78,6 +82,21 @@ export default function TransactionList({ transactions, onUpdated, categories, r
       if (result.labeled > 0) setTimeout(() => onUpdated?.(), 900)
     } catch {
       setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'error' }))
+    }
+  }
+
+  const handleUndoKeyword = async (txnId) => {
+    const keywordId = kwKeywordId[txnId]
+    if (!keywordId) return
+    setKwStatus(prev => ({ ...prev, [txnId]: 'undoing' }))
+    try {
+      await undoKeyword(keywordId)
+      setKwOpen(prev => ({ ...prev, [txnId]: false }))
+      setKwStatus(prev => ({ ...prev, [txnId]: null }))
+      setKwKeywordId(prev => { const n = { ...prev }; delete n[txnId]; return n })
+      onUpdated?.()
+    } catch {
+      setKwStatus(prev => ({ ...prev, [txnId]: 'error' }))
     }
   }
 
@@ -430,16 +449,39 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                         </button>
                       </div>
                       {kwStatus[t.transaction_id] === 'success' && (
-                        <div style={{ marginTop: 6, fontSize: 12, color: '#15803d', fontWeight: 500 }}>
-                          ✓ Matched — {kwCount[t.transaction_id]} transaction{kwCount[t.transaction_id] !== 1 ? 's' : ''} updated
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, color: '#15803d', fontWeight: 500 }}>
+                            ✓ Matched — {kwCount[t.transaction_id]} transaction{kwCount[t.transaction_id] !== 1 ? 's' : ''} updated
+                          </span>
+                          <button
+                            onClick={() => handleUndoKeyword(t.transaction_id)}
+                            className="btn btn-ghost-danger btn-sm"
+                            style={{ fontSize: 11 }}
+                          >
+                            Undo
+                          </button>
                         </div>
                       )}
                       {kwStatus[t.transaction_id] === 'no-match' && (
-                        <div style={{ marginTop: 6, fontSize: 12, color: '#b45309' }}>
-                          {kwCount[t.transaction_id] > 0
-                            ? `Keyword saved — ${kwCount[t.transaction_id]} other transaction${kwCount[t.transaction_id] !== 1 ? 's' : ''} updated (didn't match this one)`
-                            : 'Keyword saved — no unlabeled transactions matched, check spelling or try a broader term'}
+                        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, color: '#b45309' }}>
+                            {kwCount[t.transaction_id] > 0
+                              ? `Keyword saved — ${kwCount[t.transaction_id]} other transaction${kwCount[t.transaction_id] !== 1 ? 's' : ''} updated (didn't match this one)`
+                              : 'Keyword saved — no unlabeled transactions matched, check spelling or try a broader term'}
+                          </span>
+                          {kwCount[t.transaction_id] > 0 && (
+                            <button
+                              onClick={() => handleUndoKeyword(t.transaction_id)}
+                              className="btn btn-ghost-danger btn-sm"
+                              style={{ fontSize: 11 }}
+                            >
+                              Undo
+                            </button>
+                          )}
                         </div>
+                      )}
+                      {kwStatus[t.transaction_id] === 'undoing' && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#888' }}>Reverting…</div>
                       )}
                       {kwStatus[t.transaction_id] === 'conflict' && (
                         <div style={{ marginTop: 6, fontSize: 12, color: '#dc2626' }}>
