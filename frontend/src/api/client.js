@@ -91,12 +91,16 @@ export async function deleteTransaction(transactionId) {
   if (!res.ok) throw new Error(await res.text())
 }
 
-export async function getTransactions({ startDate, endDate, category, budgetSubCategory, budgetCategory, budgetMacroCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
+export async function getTransactions({ startDate, endDate, category, budgetSubCategory, budgetSubCategories, budgetCategory, budgetMacroCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)
   if (endDate) params.set('end_date', endDate)
   if (category) params.set('category', category)
-  if (budgetSubCategory) params.set('budget_sub_category', budgetSubCategory)
+  if (budgetSubCategories?.length) {
+    budgetSubCategories.forEach(s => params.append('budget_sub_categories', s))
+  } else if (budgetSubCategory) {
+    params.set('budget_sub_category', budgetSubCategory)
+  }
   if (budgetCategory) params.set('budget_category', budgetCategory)
   if (budgetMacroCategory) params.set('budget_macro_category', budgetMacroCategory)
   if (accountId) params.set('account_id', accountId)

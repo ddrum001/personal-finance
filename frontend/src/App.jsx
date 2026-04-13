@@ -40,7 +40,7 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState(false)
   const [splitQueueMode, setSplitQueueMode] = useState(false)
   const [duplicatesMode, setDuplicatesMode] = useState(false)
-  const [catFilter, setCatFilter] = useState({ macro: null, category: null, sub: null })
+  const [catFilter, setCatFilter] = useState([])
   const [txnOffset, setTxnOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const PAGE_SIZE = 500
@@ -65,14 +65,7 @@ export default function App() {
 
   const { startDate, endDate } = getDateRange(filter)
 
-  // Resolve the deepest active category filter level into a single API param
-  const catParams = catFilter.sub
-    ? { budgetSubCategory: catFilter.sub }
-    : catFilter.category
-    ? { budgetCategory: catFilter.category }
-    : catFilter.macro
-    ? { budgetMacroCategory: catFilter.macro }
-    : {}
+  const catParams = catFilter.length ? { budgetSubCategories: catFilter } : {}
 
   const loadData = useCallback(async () => {
     if (!user) return
@@ -193,7 +186,7 @@ export default function App() {
           {tab === 'transactions' && !reviewMode && !splitQueueMode && !duplicatesMode && (
             <CategoryFilter
               categories={categories}
-              value={catFilter}
+              selected={catFilter}
               onChange={setCatFilter}
             />
           )}

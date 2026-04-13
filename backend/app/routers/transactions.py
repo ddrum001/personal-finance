@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import extract, func
 from sqlalchemy.orm import Session, selectinload
-from typing import Optional
+from typing import Optional, List
 from datetime import date
 
 from pydantic import BaseModel
@@ -20,6 +20,7 @@ def list_transactions(
     end_date: Optional[date] = Query(None),
     category: Optional[str] = Query(None),
     budget_sub_category: Optional[str] = Query(None),
+    budget_sub_categories: List[str] = Query(default=[]),
     budget_category: Optional[str] = Query(None),
     budget_macro_category: Optional[str] = Query(None),
     account_id: Optional[str] = Query(None),
@@ -39,7 +40,9 @@ def list_transactions(
             (Transaction.custom_category == category)
             | (Transaction.category == category)
         )
-    if budget_sub_category:
+    if budget_sub_categories:
+        q = q.filter(Transaction.budget_sub_category.in_(budget_sub_categories))
+    elif budget_sub_category:
         q = q.filter(Transaction.budget_sub_category == budget_sub_category)
     if budget_category or budget_macro_category:
         cat_ids = db.query(BudgetCategory.sub_category)
