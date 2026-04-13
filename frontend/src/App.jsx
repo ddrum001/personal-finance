@@ -90,7 +90,10 @@ export default function App() {
   }, [startDate, endDate, txnOffset, catFilter])
 
   useEffect(() => { loadData() }, [loadData])
-  useEffect(() => { if (user) getCategories().then(setCategories).catch(console.error) }, [user])
+  const refreshCategories = useCallback(() => {
+    if (user) getCategories().then(setCategories).catch(console.error)
+  }, [user])
+  useEffect(() => { refreshCategories() }, [refreshCategories])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -280,7 +283,7 @@ export default function App() {
       {tab === 'categories' && (
         <section className="card">
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Category Management</h2>
-          <CategoriesTab />
+          <CategoriesTab onCategoryAdded={refreshCategories} />
         </section>
       )}
     </div>

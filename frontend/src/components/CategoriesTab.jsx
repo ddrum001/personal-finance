@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getCategoryHierarchy, addKeyword, deleteKeyword, applyKeywords, setHideFromReports, setMacroHideFromReports, updateCategoryFlags, renameSubCategory, renameCategory, renameMacro, moveSubCategory, moveCategoryToMacro, deleteSubCategory, deleteCategoryGroup, deleteMacroGroup } from '../api/client'
 import AddCategoryModal from './AddCategoryModal'
 
-export default function CategoriesTab() {
+export default function CategoriesTab({ onCategoryAdded }) {
   const [hierarchy, setHierarchy] = useState({})
   const [expandedMacros, setExpandedMacros] = useState({})
   const [expandedCats, setExpandedCats] = useState({})
@@ -122,6 +122,7 @@ export default function CategoriesTab() {
           onClose={() => setAddModal(null)}
           onSaved={() => {
             load()
+            onCategoryAdded?.()
             setAddModal(null)
           }}
         />
