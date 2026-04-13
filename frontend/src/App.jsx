@@ -38,7 +38,6 @@ export default function App() {
   const [importing, setImporting] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
-  const [splitQueueMode, setSplitQueueMode] = useState(false)
   const [duplicatesMode, setDuplicatesMode] = useState(false)
   const [catFilter, setCatFilter] = useState([])
   const [txnOffset, setTxnOffset] = useState(0)
@@ -71,8 +70,6 @@ export default function App() {
     if (!user) return
     const params = reviewMode
       ? { needsReview: true, limit: 2000 }
-      : splitQueueMode
-      ? { needsSplits: true }
       : { startDate, endDate, limit: PAGE_SIZE, offset: 0, ...catParams }
     const [txns, linkedItems] = await Promise.all([
       getTransactions(params),
@@ -81,8 +78,8 @@ export default function App() {
     setTransactions(txns)
     setItems(linkedItems)
     setTxnOffset(0)
-    setHasMore(!reviewMode && !splitQueueMode && txns.length === PAGE_SIZE)
-  }, [user, startDate, endDate, reviewMode, splitQueueMode, catFilter])
+    setHasMore(!reviewMode && txns.length === PAGE_SIZE)
+  }, [user, startDate, endDate, reviewMode, catFilter])
 
   const loadMore = useCallback(async () => {
     const nextOffset = txnOffset + PAGE_SIZE
@@ -176,14 +173,14 @@ export default function App() {
       {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && tab !== 'amazon' && tab !== 'credit cards' && (
         <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Row 1: date range */}
-          {!reviewMode && !splitQueueMode && (
+          {!reviewMode && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <DateFilter filter={filter} onChange={setFilter} />
               <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>
             </div>
           )}
           {/* Row 2: category filter (transactions tab, normal mode only) */}
-          {tab === 'transactions' && !reviewMode && !splitQueueMode && !duplicatesMode && (
+          {tab === 'transactions' && !reviewMode && !duplicatesMode && (
             <CategoryFilter
               categories={categories}
               selected={catFilter}
@@ -194,7 +191,7 @@ export default function App() {
           {tab === 'transactions' && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
-                onClick={() => { setReviewMode(r => !r); setSplitQueueMode(false); setDuplicatesMode(false) }}
+                onClick={() => { setReviewMode(r => !r); setDuplicatesMode(false) }}
                 style={{
                   padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
                   cursor: 'pointer', border: '1px solid',
@@ -206,19 +203,7 @@ export default function App() {
                 {reviewMode ? '⚠ Needs Review' : 'Needs Review'}
               </button>
               <button
-                onClick={() => { setSplitQueueMode(s => !s); setReviewMode(false); setDuplicatesMode(false) }}
-                style={{
-                  padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
-                  cursor: 'pointer', border: '1px solid',
-                  background: splitQueueMode ? '#fdf4ff' : '#fff',
-                  color: splitQueueMode ? '#7e22ce' : '#555',
-                  borderColor: splitQueueMode ? '#d8b4fe' : '#ddd',
-                }}
-              >
-                {splitQueueMode ? '✂ Split Queue' : 'Split Queue'}
-              </button>
-              <button
-                onClick={() => { setDuplicatesMode(d => !d); setReviewMode(false); setSplitQueueMode(false) }}
+                onClick={() => { setDuplicatesMode(d => !d); setReviewMode(false) }}
                 style={{
                   padding: '6px 14px', borderRadius: 6, fontWeight: 600, fontSize: 13,
                   cursor: 'pointer', border: '1px solid',
@@ -259,7 +244,6 @@ export default function App() {
               categories={categories}
               items={items}
               reviewMode={reviewMode}
-              splitQueueMode={splitQueueMode}
               hasMore={hasMore}
               onLoadMore={loadMore}
             />

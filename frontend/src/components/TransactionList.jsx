@@ -3,7 +3,7 @@ import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, ac
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
-export default function TransactionList({ transactions, onUpdated, categories, reviewMode, splitQueueMode, hasMore, onLoadMore }) {
+export default function TransactionList({ transactions, onUpdated, categories, reviewMode, hasMore, onLoadMore }) {
   const [editing, setEditing] = useState(null)
   const [newBudgetSubCategory, setNewBudgetSubCategory] = useState(null)
   const [splitting, setSplitting] = useState(null)
@@ -216,17 +216,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
         </div>
       )}
 
-      {/* Split queue banner */}
-      {splitQueueMode && (
-        <div style={{ background: '#fdf4ff', border: '1px solid #d8b4fe', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontSize: 13, color: '#7e22ce', fontWeight: 600 }}>
-            ✂ {visible.length} transaction{visible.length !== 1 ? 's' : ''} need splitting
-          </span>
-          <span style={{ fontSize: 12, color: '#9333ea' }}>Click Split on each row to apply a template or create custom splits</span>
-        </div>
-      )}
-
-      {/* Review mode banner */}
+{/* Review mode banner */}
       {reviewMode && (() => {
         const suggested = visible.filter(t => t.needs_review && t.budget_sub_category)
         const uncategorized = visible.filter(t => t.needs_review && !t.budget_sub_category)

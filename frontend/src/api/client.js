@@ -91,7 +91,7 @@ export async function deleteTransaction(transactionId) {
   if (!res.ok) throw new Error(await res.text())
 }
 
-export async function getTransactions({ startDate, endDate, category, budgetSubCategory, budgetSubCategories, budgetCategory, budgetMacroCategory, accountId, needsReview, needsSplits, limit, offset } = {}) {
+export async function getTransactions({ startDate, endDate, category, budgetSubCategory, budgetSubCategories, budgetCategory, budgetMacroCategory, accountId, needsReview, limit, offset } = {}) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)
   if (endDate) params.set('end_date', endDate)
@@ -105,8 +105,7 @@ export async function getTransactions({ startDate, endDate, category, budgetSubC
   if (budgetMacroCategory) params.set('budget_macro_category', budgetMacroCategory)
   if (accountId) params.set('account_id', accountId)
   if (needsReview != null) params.set('needs_review', needsReview)
-  if (needsSplits != null) params.set('needs_splits', needsSplits)
-  if (limit != null) params.set('limit', limit)
+if (limit != null) params.set('limit', limit)
   if (offset != null) params.set('offset', offset)
   const res = await fetch(`${BASE}/transactions/?${params}`)
   if (!res.ok) throw new Error(await res.text())

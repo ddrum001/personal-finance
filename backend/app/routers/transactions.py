@@ -25,7 +25,6 @@ def list_transactions(
     budget_macro_category: Optional[str] = Query(None),
     account_id: Optional[str] = Query(None),
     needs_review: Optional[bool] = Query(None),
-    needs_splits: Optional[bool] = Query(None),
     limit: int = Query(500, le=2000),
     offset: int = Query(0),
     db: Session = Depends(get_db),
@@ -61,22 +60,6 @@ def list_transactions(
         q = q.filter(Transaction.needs_review == needs_review)
         if needs_review:
             q = q.filter(Transaction.pending == False)
-    if needs_splits:
-        # Return unsplit transactions whose merchant matches any template pattern
-        patterns = [t.merchant_pattern for t in db.query(MerchantSplitTemplate).all()]
-        if patterns:
-            from sqlalchemy import func, or_
-            already_split = {
-                r[0] for r in db.query(TransactionSplit.transaction_id).distinct().all()
-            }
-            merchant_filter = or_(
-                *[func.lower(Transaction.merchant_name).contains(p) for p in patterns]
-            )
-            q = q.filter(merchant_filter, Transaction.pending == False)
-            if already_split:
-                q = q.filter(Transaction.transaction_id.notin_(already_split))
-        else:
-            q = q.filter(False)  # no templates → empty result
     txns = q.order_by(Transaction.date.desc()).offset(offset).limit(limit).all()
 
     # bulk load supporting maps

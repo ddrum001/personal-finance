@@ -40,7 +40,6 @@ export default function HelpModal({ onClose }) {
 
         <Section title="Splitting transactions">
           <p>Use <b>Split</b> on any transaction to divide it across multiple categories (e.g. a Costco run that's part groceries, part household). You can apply a saved template or create a custom split.</p>
-          <p>Click <b>Split Queue</b> on the Transactions tab to see all transactions that match a saved split template but haven't been split yet.</p>
         </Section>
 
         <Section title="Managing accounts">
