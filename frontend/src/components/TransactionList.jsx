@@ -34,6 +34,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const [kwInput, setKwInput] = useState({})
   const [kwCategory, setKwCategory] = useState({})
   const [kwStatus, setKwStatus] = useState({})  // null | 'loading' | 'success' | 'no-match' | 'conflict' | 'error'
+  const [kwCount, setKwCount] = useState({})    // labeled count from last apply run
 
   const toggleKwOpen = (txn) => {
     const id = txn.transaction_id
@@ -65,13 +66,16 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     }
 
     try {
-      const result = await applyKeywords([txn.transaction_id])
-      if (result.labeled > 0) {
+      const result = await applyKeywords()  // global — applies to all unlabeled transactions
+      const searchText = `${txn.name || ''} ${txn.merchant_name || ''}`.toLowerCase()
+      const thisMatched = searchText.includes(keyword)
+      setKwCount(prev => ({ ...prev, [txn.transaction_id]: result.labeled }))
+      if (thisMatched) {
         setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'success' }))
-        setTimeout(() => onUpdated?.(), 900)
       } else {
         setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'no-match' }))
       }
+      if (result.labeled > 0) setTimeout(() => onUpdated?.(), 900)
     } catch {
       setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'error' }))
     }
@@ -427,12 +431,14 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       </div>
                       {kwStatus[t.transaction_id] === 'success' && (
                         <div style={{ marginTop: 6, fontSize: 12, color: '#15803d', fontWeight: 500 }}>
-                          ✓ Keyword matched — moving to Suggested
+                          ✓ Matched — {kwCount[t.transaction_id]} transaction{kwCount[t.transaction_id] !== 1 ? 's' : ''} updated
                         </div>
                       )}
                       {kwStatus[t.transaction_id] === 'no-match' && (
                         <div style={{ marginTop: 6, fontSize: 12, color: '#b45309' }}>
-                          Keyword saved but didn't match this transaction — check spelling or try a broader term
+                          {kwCount[t.transaction_id] > 0
+                            ? `Keyword saved — ${kwCount[t.transaction_id]} other transaction${kwCount[t.transaction_id] !== 1 ? 's' : ''} updated (didn't match this one)`
+                            : 'Keyword saved — no unlabeled transactions matched, check spelling or try a broader term'}
                         </div>
                       )}
                       {kwStatus[t.transaction_id] === 'conflict' && (
