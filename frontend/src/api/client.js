@@ -353,8 +353,12 @@ export async function renameMacro(oldName, newName) {
   return res.json()
 }
 
-export async function applyKeywords() {
-  const res = await fetch(`${BASE}/categories/apply-keywords`, { method: 'POST' })
+export async function applyKeywords(transactionIds = null) {
+  const res = await fetch(`${BASE}/categories/apply-keywords`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: transactionIds ? JSON.stringify({ transaction_ids: transactionIds }) : null,
+  })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }

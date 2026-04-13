@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -128,13 +128,22 @@ def apply_keywords_to_transactions(db: Session, transaction_ids: Optional[list] 
     return {"labeled": labeled, "skipped": skipped}
 
 
+class ApplyKeywordsRequest(BaseModel):
+    transaction_ids: Optional[list[str]] = None
+
+
 @router.post("/apply-keywords", response_model=ApplyKeywordsResponse)
-def apply_keywords(db: Session = Depends(get_db)):
+def apply_keywords(
+    body: Optional[ApplyKeywordsRequest] = Body(default=None),
+    db: Session = Depends(get_db),
+):
     """
-    Scans all transactions without a budget_sub_category and applies the first
-    matching keyword. Returns counts of labeled vs skipped.
+    Scans transactions without a budget_sub_category and applies the first
+    matching keyword. Pass transaction_ids to scope to specific transactions.
+    Returns counts of labeled vs skipped.
     """
-    result = apply_keywords_to_transactions(db)
+    ids = body.transaction_ids if body else None
+    result = apply_keywords_to_transactions(db, transaction_ids=ids)
     return ApplyKeywordsResponse(labeled=result["labeled"], skipped=result["skipped"])
 
 

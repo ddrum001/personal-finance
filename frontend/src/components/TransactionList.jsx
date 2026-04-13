@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder } from '../api/client'
+import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder, addKeyword, applyKeywords } from '../api/client'
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
@@ -28,6 +28,53 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const [reviewedThisSession, setReviewedThisSession] = useState(new Map())
   // Local field overrides applied on top of the prop — avoids re-fetch for Accept/Defer
   const [txnOverrides, setTxnOverrides] = useState({})
+
+  // Inline keyword-add state (keyed by transaction_id)
+  const [kwOpen, setKwOpen] = useState({})
+  const [kwInput, setKwInput] = useState({})
+  const [kwCategory, setKwCategory] = useState({})
+  const [kwStatus, setKwStatus] = useState({})  // null | 'loading' | 'success' | 'no-match' | 'conflict' | 'error'
+
+  const toggleKwOpen = (id) => {
+    setKwOpen(prev => ({ ...prev, [id]: !prev[id] }))
+    // Pre-fill keyword from merchant/name on first open
+    setKwInput(prev => prev[id] !== undefined ? prev : {
+      ...prev,
+      [id]: '',
+    })
+    setKwStatus(prev => ({ ...prev, [id]: null }))
+  }
+
+  const handleAddAndTest = async (txn) => {
+    const keyword = (kwInput[txn.transaction_id] || '').trim().toLowerCase()
+    const subCat = kwCategory[txn.transaction_id]
+    if (!keyword || !subCat) return
+    const cat = (categories || []).find(c => c.sub_category === subCat)
+    if (!cat) return
+
+    setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'loading' }))
+
+    try {
+      await addKeyword(cat.id, keyword)
+    } catch (err) {
+      const msg = err.message || ''
+      const isConflict = msg.includes('already') || msg.includes('409')
+      setKwStatus(prev => ({ ...prev, [txn.transaction_id]: isConflict ? 'conflict' : 'error' }))
+      return
+    }
+
+    try {
+      const result = await applyKeywords([txn.transaction_id])
+      if (result.labeled > 0) {
+        setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'success' }))
+        setTimeout(() => onUpdated?.(), 900)
+      } else {
+        setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'no-match' }))
+      }
+    } catch {
+      setKwStatus(prev => ({ ...prev, [txn.transaction_id]: 'error' }))
+    }
+  }
 
   const applyOverride = (id, fields) =>
     setTxnOverrides(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...fields } }))
@@ -307,31 +354,98 @@ export default function TransactionList({ transactions, onUpdated, categories, r
             <div style={{ border: '1px solid #fed7aa', borderRadius: 8, overflow: 'hidden' }}>
               {uncategorized.map((t, idx) => (
                 <div key={t.transaction_id} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px',
                   borderTop: idx > 0 ? '1px solid #ffedd5' : undefined,
                   background: '#fff',
-                  flexWrap: 'wrap',
                 }}>
-                  <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
-                  <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
-                    {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
-                    <AccountBadge t={t} />
+                  {/* Main row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                      {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
+                      <AccountBadge t={t} />
+                    </div>
+                    <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
+                      {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
+                    </span>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <CategorySelect
+                        value={editing === t.transaction_id ? newBudgetSubCategory : null}
+                        onChange={(val) => { setEditing(t.transaction_id); setNewBudgetSubCategory(val) }}
+                        categories={categories || []}
+                        placeholder="Pick a category…"
+                      />
+                      {editing === t.transaction_id && newBudgetSubCategory && (
+                        <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
+                      )}
+                      <button
+                        onClick={() => toggleKwOpen(t.transaction_id)}
+                        className="btn btn-ghost-accent btn-sm"
+                        title="Add a keyword so future transactions like this are auto-categorized"
+                        style={{ color: kwOpen[t.transaction_id] ? '#6366f1' : undefined }}
+                      >
+                        💡 {kwOpen[t.transaction_id] ? 'Cancel' : 'Add keyword'}
+                      </button>
+                    </div>
                   </div>
-                  <span style={{ fontSize: 13, color: t.amount > 0 ? '#ef4444' : '#10b981', whiteSpace: 'nowrap' }}>
-                    {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
-                  </span>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <CategorySelect
-                      value={editing === t.transaction_id ? newBudgetSubCategory : null}
-                      onChange={(val) => { setEditing(t.transaction_id); setNewBudgetSubCategory(val) }}
-                      categories={categories || []}
-                      placeholder="Pick a category…"
-                    />
-                    {editing === t.transaction_id && newBudgetSubCategory && (
-                      <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
-                    )}
-                  </div>
+
+                  {/* Inline keyword form */}
+                  {kwOpen[t.transaction_id] && (
+                    <div style={{ padding: '10px 12px 12px', borderTop: '1px solid #ffedd5', background: '#fffbf5' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>
+                        Add keyword rule — when a transaction name contains this keyword, assign it to the chosen category
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          type="text"
+                          value={kwInput[t.transaction_id] || ''}
+                          onChange={e => setKwInput(prev => ({ ...prev, [t.transaction_id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && handleAddAndTest(t)}
+                          placeholder={`e.g. "${(t.merchant_name || t.name || '').toLowerCase().split(' ')[0]}"`}
+                          style={{
+                            fontSize: 13, padding: '4px 8px',
+                            border: '1px solid #d1d5db', borderRadius: 6,
+                            width: 170, outline: 'none',
+                          }}
+                          autoFocus
+                        />
+                        <span style={{ fontSize: 12, color: '#aaa' }}>→</span>
+                        <CategorySelect
+                          value={kwCategory[t.transaction_id] || null}
+                          onChange={val => setKwCategory(prev => ({ ...prev, [t.transaction_id]: val }))}
+                          categories={categories || []}
+                          placeholder="Pick category…"
+                        />
+                        <button
+                          onClick={() => handleAddAndTest(t)}
+                          disabled={!kwInput[t.transaction_id]?.trim() || !kwCategory[t.transaction_id] || kwStatus[t.transaction_id] === 'loading'}
+                          className="btn btn-primary btn-sm"
+                        >
+                          {kwStatus[t.transaction_id] === 'loading' ? '…' : 'Add & Test'}
+                        </button>
+                      </div>
+                      {kwStatus[t.transaction_id] === 'success' && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#15803d', fontWeight: 500 }}>
+                          ✓ Keyword matched — moving to Suggested
+                        </div>
+                      )}
+                      {kwStatus[t.transaction_id] === 'no-match' && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#b45309' }}>
+                          Keyword saved but didn't match this transaction — check spelling or try a broader term
+                        </div>
+                      )}
+                      {kwStatus[t.transaction_id] === 'conflict' && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#dc2626' }}>
+                          That keyword is already assigned to another category
+                        </div>
+                      )}
+                      {kwStatus[t.transaction_id] === 'error' && (
+                        <div style={{ marginTop: 6, fontSize: 12, color: '#dc2626' }}>
+                          Something went wrong — please try again
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
