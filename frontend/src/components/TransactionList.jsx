@@ -35,12 +35,13 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const [kwCategory, setKwCategory] = useState({})
   const [kwStatus, setKwStatus] = useState({})  // null | 'loading' | 'success' | 'no-match' | 'conflict' | 'error'
 
-  const toggleKwOpen = (id) => {
+  const toggleKwOpen = (txn) => {
+    const id = txn.transaction_id
     setKwOpen(prev => ({ ...prev, [id]: !prev[id] }))
-    // Pre-fill keyword from merchant/name on first open
+    // Pre-fill with first word of merchant/name on first open; don't overwrite if already edited
     setKwInput(prev => prev[id] !== undefined ? prev : {
       ...prev,
-      [id]: '',
+      [id]: (txn.merchant_name || txn.name || '').toLowerCase().split(' ')[0],
     })
     setKwStatus(prev => ({ ...prev, [id]: null }))
   }
@@ -379,7 +380,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                         <button onClick={() => handleSave(t.transaction_id)} className="btn btn-primary btn-sm">Save</button>
                       )}
                       <button
-                        onClick={() => toggleKwOpen(t.transaction_id)}
+                        onClick={() => toggleKwOpen(t)}
                         className="btn btn-ghost-accent btn-sm"
                         title="Add a keyword so future transactions like this are auto-categorized"
                         style={{ color: kwOpen[t.transaction_id] ? '#6366f1' : undefined }}
@@ -401,7 +402,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                           value={kwInput[t.transaction_id] || ''}
                           onChange={e => setKwInput(prev => ({ ...prev, [t.transaction_id]: e.target.value }))}
                           onKeyDown={e => e.key === 'Enter' && handleAddAndTest(t)}
-                          placeholder={`e.g. "${(t.merchant_name || t.name || '').toLowerCase().split(' ')[0]}"`}
+                          placeholder="keyword"
                           style={{
                             fontSize: 13, padding: '4px 8px',
                             border: '1px solid #d1d5db', borderRadius: 6,
