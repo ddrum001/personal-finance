@@ -20,6 +20,14 @@ export function getDateRange(filter) {
     const start = new Date(today); start.setDate(today.getDate() - 90)
     return { startDate: fmt(start), endDate: fmt(today) }
   }
+  if (filter.mode === 'last6months') {
+    const start = new Date(today); start.setMonth(today.getMonth() - 6)
+    return { startDate: fmt(start), endDate: fmt(today) }
+  }
+  if (filter.mode === 'lastyear') {
+    const start = new Date(today); start.setFullYear(today.getFullYear() - 1)
+    return { startDate: fmt(start), endDate: fmt(today) }
+  }
   if (filter.mode === 'month') {
     const y = filter.year, m = filter.month
     const lastDay = new Date(y, m, 0).getDate()   // day 0 of next month = last day of this month
@@ -44,6 +52,8 @@ export function getFilterLabel(filter) {
   if (filter.mode === 'all') return 'All dates'
   if (filter.mode === 'last30') return 'Last 30 days'
   if (filter.mode === 'last90') return 'Last 90 days'
+  if (filter.mode === 'last6months') return 'Last 6 months'
+  if (filter.mode === 'lastyear') return 'Last year'
   if (filter.mode === 'month') return `${new Date(filter.year, filter.month - 1).toLocaleString('default', { month: 'long' })} ${filter.year}`
   if (filter.mode === 'quarter') return `Q${filter.quarter} ${filter.year}`
   return ''
@@ -59,9 +69,11 @@ export default function DateFilter({ filter, onChange }) {
       {/* Mode pills */}
       <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'auto', flexWrap: 'wrap' }}>
         {[
-          { value: 'last90', label: 'Last 90d' },
-          { value: 'last30', label: 'Last 30d' },
-          { value: 'month',  label: 'Month'    },
+          { value: 'last30',     label: 'Last 30d'  },
+          { value: 'last90',     label: 'Last 90d'  },
+          { value: 'last6months',label: 'Last 6mo'  },
+          { value: 'lastyear',   label: 'Last year' },
+          { value: 'month',      label: 'Month'     },
           { value: 'quarter',label: 'Quarter'  },
           { value: 'all',    label: 'All'      },
         ].map(({ value, label }) => (
