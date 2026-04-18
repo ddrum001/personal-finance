@@ -11,3 +11,7 @@ PyJWT==2.8.0
 requests==2.32.3
 psycopg2-binary==2.9.9
 python-multipart==0.0.9
+beautifulsoup4
+lxml
+google-auth-oauthlib
+google-api-python-client
