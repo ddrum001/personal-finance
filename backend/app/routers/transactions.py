@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, extract, func
+from sqlalchemy import case, extract, func, or_
 from sqlalchemy.orm import Session, selectinload
 from typing import Optional, List
 from datetime import date
@@ -478,6 +478,15 @@ def monthly_trend(
 ):
     """Money in and out per month. Returns total_out (debits), total_in (credits), and net per month."""
     excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
+    # Match by-category behaviour: exclude transactions whose budget_sub_category
+    # resolves to a BudgetCategory with hide_from_reports=True.
+    # Uncategorized transactions (budget_sub_category IS NULL) are always kept.
+    hidden_sub_cats = {
+        r[0]
+        for r in db.query(BudgetCategory.sub_category)
+        .filter(BudgetCategory.hide_from_reports == True)
+        .all()
+    }
     q = (
         db.query(
             extract("year", Transaction.date).label("year"),
@@ -493,6 +502,13 @@ def monthly_trend(
     )
     if excluded_ids:
         q = q.filter(Transaction.account_id.notin_(excluded_ids))
+    if hidden_sub_cats:
+        q = q.filter(
+            or_(
+                Transaction.budget_sub_category.is_(None),
+                Transaction.budget_sub_category.notin_(hidden_sub_cats),
+            )
+        )
     if start_date and end_date:
         q = q.filter(Transaction.date >= start_date, Transaction.date <= end_date)
     q = q.group_by("year", "month").order_by("year", "month")
