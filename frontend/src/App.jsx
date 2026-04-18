@@ -27,7 +27,11 @@ const DEFAULT_FILTER = {
 
 export default function App() {
   const [user, setUser] = useState(undefined) // undefined = loading, null = not authed
-  const [tab, setTab] = useState(() => localStorage.getItem('activeTab') || 'dashboard')
+  const [tab, setTab] = useState(() => {
+    const saved = localStorage.getItem('activeTab')
+    if (saved === 'dashboard') { localStorage.setItem('activeTab', 'overview'); return 'overview' }
+    return saved || 'overview'
+  })
 
   const switchTab = (t) => { setTab(t); localStorage.setItem('activeTab', t) }
   const [transactions, setTransactions] = useState([])
@@ -134,7 +138,7 @@ export default function App() {
 
       {(() => {
         const NAV_GROUPS = [
-          { group: 'Planning', tabs: ['dashboard', 'cashflow'] },
+          { group: 'Planning', tabs: ['overview', 'cashflow'] },
           { group: 'Tracking', tabs: ['transactions', 'amazon'] },
           { group: 'Setup',    tabs: ['accounts', 'credit cards', 'categories'] },
         ]
@@ -173,7 +177,7 @@ export default function App() {
       })()}
 
       {/* Date filter + category filter + mode toggles */}
-      {tab !== 'categories' && tab !== 'cashflow' && tab !== 'accounts' && tab !== 'amazon' && tab !== 'credit cards' && (
+      {(tab === 'overview' || tab === 'transactions') && (
         <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Row 1: date range */}
           {!reviewMode && (
@@ -222,15 +226,15 @@ export default function App() {
         </div>
       )}
 
-      {tab === 'dashboard' && (
+      {tab === 'overview' && (
         <div style={{ display: 'grid', gap: 24 }}>
           <section className="card">
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Spending by Category</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Outflows by Category</h2>
             <SpendingByCategory startDate={startDate} endDate={endDate} />
           </section>
 
           <section className="card">
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Monthly Spending Trend</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Monthly Activity</h2>
             <MonthlyTrend startDate={startDate} endDate={endDate} />
           </section>
         </div>

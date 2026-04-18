@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import extract, func
+from sqlalchemy import case, extract, func
 from sqlalchemy.orm import Session, selectinload
 from typing import Optional, List
 from datetime import date
@@ -476,15 +476,20 @@ def monthly_trend(
     months: int = Query(6, ge=1, le=24),
     db: Session = Depends(get_db),
 ):
-    """Total spending per month. When start_date/end_date are given they take priority over `months`."""
+    """Money in and out per month. Returns total_out (debits), total_in (credits), and net per month."""
     excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
     q = (
         db.query(
             extract("year", Transaction.date).label("year"),
             extract("month", Transaction.date).label("month"),
-            func.sum(Transaction.amount).label("total"),
+            func.sum(
+                case((Transaction.amount > 0, Transaction.amount), else_=0)
+            ).label("total_out"),
+            func.sum(
+                case((Transaction.amount < 0, -Transaction.amount), else_=0)
+            ).label("total_in"),
         )
-        .filter(Transaction.pending == False, Transaction.amount > 0)
+        .filter(Transaction.pending == False)
     )
     if excluded_ids:
         q = q.filter(Transaction.account_id.notin_(excluded_ids))
@@ -495,6 +500,12 @@ def monthly_trend(
         q = q.limit(months)
     rows = q.all()
     return [
-        {"year": int(r.year), "month": int(r.month), "total": round(r.total, 2)}
+        {
+            "year": int(r.year),
+            "month": int(r.month),
+            "total_out": round(float(r.total_out or 0), 2),
+            "total_in": round(float(r.total_in or 0), 2),
+            "net": round(float(r.total_in or 0) - float(r.total_out or 0), 2),
+        }
         for r in rows
     ]
