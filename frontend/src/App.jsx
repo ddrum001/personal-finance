@@ -268,7 +268,7 @@ export default function App() {
       {tab === 'amazon' && (
         <section className="card">
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Amazon Orders</h2>
-          <AmazonTab />
+          <AmazonTab categories={categories} />
         </section>
       )}
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, dismissAmazonOrder, restoreAmazonOrder, automatchAmazonOrders, reparseAmazonOrders } from '../api/client'
+import { getAmazonOrders, getAmazonOrderCandidates, linkAmazonOrder, unlinkAmazonOrder, dismissAmazonOrder, restoreAmazonOrder, automatchAmazonOrders, reparseAmazonOrders, saveSplits, updateBudgetCategory } from '../api/client'
+import CategorySelect from './CategorySelect'
 
 function OrderCard({ order, onLink, onUnlink, onDismiss, onRestore }) {
   const sub = order.subtotals || {}
@@ -93,10 +94,19 @@ function OrderCard({ order, onLink, onUnlink, onDismiss, onRestore }) {
   )
 }
 
-function LinkModal({ order, onClose, onLinked }) {
+function LinkModal({ order, onClose, onLinked, categories }) {
+  // ── Step 1: pick a transaction ──────────────────────────────────────────
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
   const [linking, setLinking] = useState(null)
+
+  // ── Step 2: categorize ──────────────────────────────────────────────────
+  const [step, setStep] = useState('pick')
+  const [linkedTxnId, setLinkedTxnId] = useState(null)
+  const [linkedTxnAmount, setLinkedTxnAmount] = useState(null)
+  const [splitRows, setSplitRows] = useState([])
+  const [applying, setApplying] = useState(false)
+  const [applyError, setApplyError] = useState('')
 
   useEffect(() => {
     getAmazonOrderCandidates(order.id)
@@ -104,47 +114,204 @@ function LinkModal({ order, onClose, onLinked }) {
       .finally(() => setLoading(false))
   }, [order.id])
 
-  const handleLink = async (transactionId) => {
-    setLinking(transactionId)
+  // ── Step 1 action ───────────────────────────────────────────────────────
+  const handleLink = async (txn) => {
+    setLinking(txn.transaction_id)
     try {
-      await linkAmazonOrder(order.id, transactionId)
-      onLinked(order.id, transactionId)
-      onClose()
+      const res = await linkAmazonOrder(order.id, txn.transaction_id)
+      onLinked(order.id, txn.transaction_id) // refresh order list in background
+
+      const suggestions = res.item_suggestions || []
+      if (suggestions.length === 0) {
+        onClose()
+        return
+      }
+
+      // Pre-fill split rows with equal amounts and per-item keyword suggestions
+      const n = suggestions.length
+      const perItem = parseFloat((txn.amount / n).toFixed(2))
+      const lastAmt = parseFloat((txn.amount - perItem * (n - 1)).toFixed(2))
+      setSplitRows(suggestions.map((item, i) => ({
+        description: item.description,
+        amount: String(i === n - 1 ? lastAmt : perItem),
+        budget_sub_category: item.suggested_category || '',
+      })))
+      setLinkedTxnId(txn.transaction_id)
+      setLinkedTxnAmount(txn.amount)
+      setStep('categorize')
+    } catch (e) {
+      console.error(e)
     } finally {
       setLinking(null)
     }
   }
 
+  // ── Step 2 helpers ──────────────────────────────────────────────────────
+  const updateRow = (i, field, value) =>
+    setSplitRows(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r))
+
+  const handleApply = async () => {
+    setApplyError('')
+    if (splitRows.some(r => !r.budget_sub_category)) {
+      setApplyError('Each item needs a category. Use Skip to skip categorization.')
+      return
+    }
+    const amounts = splitRows.map(r => parseFloat(r.amount))
+    if (amounts.some(a => isNaN(a) || a <= 0)) {
+      setApplyError('All amounts must be positive numbers.')
+      return
+    }
+    const total = Math.round(amounts.reduce((s, a) => s + a, 0) * 100) / 100
+    if (Math.abs(total - linkedTxnAmount) > 0.01) {
+      setApplyError(`Amounts must sum to $${linkedTxnAmount.toFixed(2)}. Currently $${total.toFixed(2)}.`)
+      return
+    }
+    setApplying(true)
+    try {
+      const uniqueCats = [...new Set(splitRows.map(r => r.budget_sub_category))]
+      if (uniqueCats.length === 1) {
+        // All items share a category — apply directly, no split needed
+        await updateBudgetCategory(linkedTxnId, uniqueCats[0])
+      } else {
+        // Multiple categories — save as a split, using item description as each row's note
+        await saveSplits(linkedTxnId, splitRows.map(r => ({
+          amount: parseFloat(r.amount),
+          budget_sub_category: r.budget_sub_category,
+          category: r.budget_sub_category,
+          note: r.description,
+        })))
+      }
+      onClose()
+    } catch (e) {
+      setApplyError(e.message)
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  // ── Shared order header ─────────────────────────────────────────────────
   const sub = order.subtotals || {}
   const hasSubtotals = sub.item_subtotal != null || sub.shipping != null || sub.tax != null
 
+  const OrderHeader = () => (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: '#111' }}>
+          {order.order_total != null ? `$${order.order_total.toFixed(2)}` : '—'}
+        </span>
+        <span style={{ marginLeft: 10, color: '#888', fontSize: 12 }}>{order.order_date}</span>
+      </div>
+      {hasSubtotals && (
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
+          {sub.item_subtotal != null && `items $${sub.item_subtotal.toFixed(2)}`}
+          {sub.shipping != null && ` · shipping $${sub.shipping.toFixed(2)}`}
+          {sub.tax != null && ` · tax $${sub.tax.toFixed(2)}`}
+        </div>
+      )}
+      {order.items?.length > 0 && (
+        <div style={{ fontSize: 11, color: '#888' }}>
+          {order.items.slice(0, 2).map((item, i) => (
+            <span key={i}>{i > 0 ? ' · ' : ''}{item.description}</span>
+          ))}
+          {order.items.length > 2 && <span> · +{order.items.length - 2} more</span>}
+        </div>
+      )}
+    </div>
+  )
+
+  // ── Step 2: categorize ──────────────────────────────────────────────────
+  if (step === 'categorize') {
+    const allocated = Math.round(splitRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) * 100) / 100
+    const remaining = Math.round((linkedTxnAmount - allocated) * 100) / 100
+    const uniqueCats = [...new Set(splitRows.map(r => r.budget_sub_category).filter(Boolean))]
+    const willSplit = uniqueCats.length > 1
+    const applyLabel = applying ? 'Applying…' : willSplit ? 'Apply as Split' : 'Apply Category'
+
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" style={{ maxWidth: 520, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ color: '#10b981', fontWeight: 700, fontSize: 13 }}>✓ Linked</span>
+                <span style={{ fontSize: 12, color: '#888' }}>${linkedTxnAmount.toFixed(2)}</span>
+              </div>
+              <h2 style={{ fontSize: 15, fontWeight: 700 }}>Categorize this transaction</h2>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>×</button>
+          </div>
+
+          <OrderHeader />
+
+          <div style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
+            {splitRows.length} item{splitRows.length !== 1 ? 's' : ''} detected
+            {splitRows.length > 1 ? ' · adjust amounts if needed, then apply' : ''}
+          </div>
+
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {splitRows.map((row, i) => (
+              <div key={i} style={{ paddingBottom: 12, marginBottom: 12, borderBottom: i < splitRows.length - 1 ? '1px solid #f3f4f6' : 'none' }}>
+                <div style={{ fontSize: 12, color: '#555', marginBottom: 6, lineHeight: 1.4, fontStyle: 'italic' }}>
+                  {row.description || `Item ${i + 1}`}
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <CategorySelect
+                      value={row.budget_sub_category || null}
+                      onChange={val => updateRow(i, 'budget_sub_category', val || '')}
+                      categories={categories}
+                    />
+                  </div>
+                  {splitRows.length > 1 && (
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={row.amount}
+                      onChange={e => updateRow(i, 'amount', e.target.value)}
+                      style={{ width: 84, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13, flexShrink: 0 }}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {splitRows.length > 1 && (
+            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4, color: remaining === 0 ? '#10b981' : remaining < 0 ? '#ef4444' : '#f59e0b' }}>
+              {remaining === 0 ? 'Fully allocated' : remaining > 0 ? `$${remaining.toFixed(2)} remaining` : `Over by $${Math.abs(remaining).toFixed(2)}`}
+            </div>
+          )}
+
+          {applyError && <p style={{ color: '#ef4444', fontSize: 13, marginTop: 8, marginBottom: 0 }}>{applyError}</p>}
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button
+              onClick={onClose}
+              style={{ padding: '7px 18px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+            >
+              Skip
+            </button>
+            <button
+              onClick={handleApply}
+              disabled={applying}
+              style={{ padding: '7px 18px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 6, cursor: applying ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, opacity: applying ? 0.7 : 1 }}
+            >
+              {applyLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Step 1: pick a transaction ──────────────────────────────────────────
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 520, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
-        {/* Order summary */}
         <div style={{ marginBottom: 14 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Link Transaction</h2>
-          <div style={{ fontSize: 13, color: '#555', marginBottom: 2 }}>
-            <span style={{ fontWeight: 700, fontSize: 16, color: '#111' }}>
-              {order.order_total != null ? `$${order.order_total.toFixed(2)}` : '—'}
-            </span>
-            <span style={{ marginLeft: 10, color: '#888', fontSize: 12 }}>{order.order_date}</span>
-          </div>
-          {hasSubtotals && (
-            <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-              {sub.item_subtotal != null && `items $${sub.item_subtotal.toFixed(2)}`}
-              {sub.shipping != null && ` · shipping $${sub.shipping.toFixed(2)}`}
-              {sub.tax != null && ` · tax $${sub.tax.toFixed(2)}`}
-            </div>
-          )}
-          {order.items?.length > 0 && (
-            <div style={{ fontSize: 11, color: '#888' }}>
-              {order.items.slice(0, 2).map((item, i) => (
-                <span key={i}>{i > 0 ? ' · ' : ''}{item.description}</span>
-              ))}
-              {order.items.length > 2 && <span> · +{order.items.length - 2} more</span>}
-            </div>
-          )}
+          <OrderHeader />
         </div>
 
         <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
@@ -179,7 +346,7 @@ function LinkModal({ order, onClose, onLinked }) {
                     )}
                   </div>
                   <button
-                    onClick={() => handleLink(txn.transaction_id)}
+                    onClick={() => handleLink(txn)}
                     disabled={linking === txn.transaction_id}
                     style={{ padding: '4px 12px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0, opacity: linking === txn.transaction_id ? 0.6 : 1 }}
                   >
@@ -201,7 +368,7 @@ function LinkModal({ order, onClose, onLinked }) {
   )
 }
 
-export default function AmazonTab() {
+export default function AmazonTab({ categories = [] }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [linkingOrder, setLinkingOrder] = useState(null)
@@ -407,6 +574,7 @@ export default function AmazonTab() {
           order={linkingOrder}
           onClose={() => setLinkingOrder(null)}
           onLinked={handleLinked}
+          categories={categories}
         />
       )}
     </div>

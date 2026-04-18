@@ -280,20 +280,11 @@ def _try_auto_match(order: AmazonOrder, db: Session):
         order.match_type = "auto"
 
 
-def _suggest_category(order: AmazonOrder, db: Session):
-    """Run item descriptions through existing keyword rules to suggest a category."""
-    if not order.items:
-        return
-
-    try:
-        items = json.loads(order.items)
-    except (json.JSONDecodeError, TypeError):
-        return
-
+def _build_keyword_rules(db: Session) -> list[tuple[str, str]]:
+    """Return keyword rules sorted longest-first (shared by both suggest helpers)."""
     keywords = db.query(CategoryKeyword).all()
     cat_map = {c.id: c for c in db.query(BudgetCategory).all()}
-
-    rules = sorted(
+    return sorted(
         [
             (kw.keyword, cat_map[kw.budget_category_id].sub_category)
             for kw in keywords
@@ -303,10 +294,45 @@ def _suggest_category(order: AmazonOrder, db: Session):
         reverse=True,
     )
 
+
+def _suggest_category(order: AmazonOrder, db: Session):
+    """Set order.suggested_category to the first keyword match across all item descriptions."""
+    if not order.items:
+        return
+    try:
+        items = json.loads(order.items)
+    except (json.JSONDecodeError, TypeError):
+        return
+    rules = _build_keyword_rules(db)
     search_text = " ".join(item.get("description", "") for item in items).lower()
     match = next((sub_cat for kw, sub_cat in rules if kw in search_text), None)
     if match:
         order.suggested_category = match
+
+
+def _suggest_category_per_item(order: AmazonOrder, db: Session) -> list[dict]:
+    """
+    Run keyword rules against each item individually.
+    Returns [{ description, quantity, suggested_category }] — one entry per item.
+    suggested_category is None when no keyword matches that item.
+    """
+    if not order.items:
+        return []
+    try:
+        items = json.loads(order.items)
+    except (json.JSONDecodeError, TypeError):
+        return []
+    rules = _build_keyword_rules(db)
+    result = []
+    for item in items:
+        text = item.get("description", "").lower()
+        match = next((sub_cat for kw, sub_cat in rules if kw in text), None)
+        result.append({
+            "description": item.get("description", ""),
+            "quantity": item.get("quantity", 1),
+            "suggested_category": match,
+        })
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -543,7 +569,11 @@ def link_amazon_order(order_id: int, body: LinkBody, request: Request, db: Sessi
     order.match_type = "manual"
     _suggest_category(order, db)
     db.commit()
-    return {"ok": True, "suggested_category": order.suggested_category}
+    return {
+        "ok": True,
+        "suggested_category": order.suggested_category,
+        "item_suggestions": _suggest_category_per_item(order, db),
+    }
 
 
 @router.patch("/amazon/orders/{order_id}/dismiss")
