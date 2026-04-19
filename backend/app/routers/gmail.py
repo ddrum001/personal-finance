@@ -67,12 +67,21 @@ def _get_user_email(request: Request) -> str:
 
 def _build_gmail_service(cred: GmailCredential, db: Session):
     """Build an authenticated Gmail API client, refreshing the token if needed."""
+    # Normalize token_expiry: Postgres returns timezone-aware datetimes; google-auth
+    # expects either naive UTC or timezone-aware. Strip tzinfo to get naive UTC so the
+    # comparison inside credentials.expired is unambiguous.
+    expiry = cred.token_expiry
+    if expiry is not None and hasattr(expiry, "tzinfo") and expiry.tzinfo is not None:
+        from datetime import timezone as _tz
+        expiry = expiry.astimezone(_tz.utc).replace(tzinfo=None)
+
     credentials = Credentials(
         token=cred.access_token,
         refresh_token=cred.refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
+        expiry=expiry,  # required: without this, expired is always False → token never refreshes
     )
     if credentials.expired and credentials.refresh_token:
         credentials.refresh(GoogleRequest())
