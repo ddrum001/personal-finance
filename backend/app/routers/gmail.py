@@ -453,6 +453,16 @@ def gmail_disconnect(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/amazon/sync")
 def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
+    import traceback as _tb
+    try:
+        return _sync_amazon_orders_impl(request, db)
+    except HTTPException:
+        raise
+    except Exception as _exc:
+        raise HTTPException(500, detail=_tb.format_exc()) from _exc
+
+
+def _sync_amazon_orders_impl(request: Request, db: Session):
     email = _get_user_email(request)
     cred = db.get(GmailCredential, email)
     if not cred:
