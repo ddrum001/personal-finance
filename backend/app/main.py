@@ -47,7 +47,9 @@ _MIGRATIONS = [
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS autopay_timing_value INTEGER",
 ]
 _SEEDS = [
-    "UPDATE budget_categories SET hide_from_reports = TRUE WHERE macro_category = 'Financial Transactions'",
+    # Only hide true transfer/internal categories — NOT rewards or fees
+    "UPDATE budget_categories SET hide_from_reports = TRUE WHERE sub_category IN ('Transfer Payment', 'ATM Deposit', 'Overdraft Protection')",
+    "UPDATE budget_categories SET hide_from_reports = FALSE WHERE sub_category IN ('Credit Card Rewards', 'Credit Card Fees')",
     "UPDATE transactions SET needs_review = TRUE WHERE budget_sub_category IS NULL",
     # Backfill institution_name from plaid_items for existing transactions
     # Using correlated subquery (works on both PostgreSQL and SQLite)

@@ -172,7 +172,9 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
 
   const handleMacroHide = async (e) => {
     e.stopPropagation()
-    await setMacroHideFromReports(macro, !allHidden)
+    // All-visible → hide all; partial or all-hidden → show all
+    const shouldHide = hiddenCount === 0
+    await setMacroHideFromReports(macro, shouldHide)
     onHideChange()
   }
 
@@ -206,7 +208,7 @@ function MacroSection({ macro, cats, expanded, onToggle, expandedCats, onToggleC
         </button>
         <button
           onClick={handleMacroHide}
-          title={allHidden ? 'Show in reports' : 'Hide from reports'}
+          title={hiddenCount === 0 ? 'Hide all from reports' : 'Show all in reports'}
           style={{
             margin: '0 12px', padding: '4px 10px', borderRadius: 20, border: '1px solid',
             fontSize: 12, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
