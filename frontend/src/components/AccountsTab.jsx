@@ -81,8 +81,16 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
       const result = await syncAmazonOrders()
       setAmazonSyncResult(result)
     } catch (e) {
-      try { setAmazonSyncResult({ error: JSON.parse(e.message).detail }) }
-      catch { setAmazonSyncResult({ error: e.message }) }
+      let detail
+      try { detail = JSON.parse(e.message).detail } catch { detail = e.message }
+      if (detail === 'gmail_reauth_required') {
+        // Refresh token revoked — backend already wiped the credential.
+        // Drop back to disconnected state so the reconnect button appears.
+        setGmailStatus({ connected: false, gmail_address: null })
+        setGmailError('Gmail authorization expired — please reconnect to sync Amazon orders.')
+      } else {
+        setAmazonSyncResult({ error: detail })
+      }
     } finally {
       setAmazonSyncing(false)
     }

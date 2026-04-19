@@ -8,6 +8,7 @@ import jwt
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+import google.auth.exceptions
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -84,7 +85,14 @@ def _build_gmail_service(cred: GmailCredential, db: Session):
         expiry=expiry,  # required: without this, expired is always False → token never refreshes
     )
     if credentials.expired and credentials.refresh_token:
-        credentials.refresh(GoogleRequest())
+        try:
+            credentials.refresh(GoogleRequest())
+        except google.auth.exceptions.RefreshError:
+            # Refresh token revoked or expired — wipe the stored credential so
+            # the user is prompted to reconnect rather than hitting 500 forever.
+            db.delete(cred)
+            db.commit()
+            raise HTTPException(401, detail="gmail_reauth_required")
         cred.access_token = credentials.token
         cred.token_expiry = credentials.expiry
         db.commit()
@@ -453,16 +461,6 @@ def gmail_disconnect(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/amazon/sync")
 def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
-    import traceback as _tb
-    try:
-        return _sync_amazon_orders_impl(request, db)
-    except HTTPException:
-        raise
-    except Exception as _exc:
-        raise HTTPException(500, detail=_tb.format_exc()) from _exc
-
-
-def _sync_amazon_orders_impl(request: Request, db: Session):
     email = _get_user_email(request)
     cred = db.get(GmailCredential, email)
     if not cred:
