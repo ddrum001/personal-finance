@@ -15,6 +15,12 @@ _is_sqlite = DATABASE_URL.startswith("sqlite")
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if _is_sqlite else {},
+    # pool_pre_ping revalidates connections before use, preventing stale-connection
+    # errors after Neon/Railway compute cold starts or idle timeouts.
+    # pool_recycle evicts connections older than 5 minutes as a belt-and-suspenders
+    # measure alongside pre_ping.
+    pool_pre_ping=True,
+    pool_recycle=300,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
