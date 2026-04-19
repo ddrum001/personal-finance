@@ -1,14 +1,12 @@
 """
-Migrate data from Railway PostgreSQL to Neon.
-
-Run from the project root via Railway CLI so DATABASE_URL resolves to the
-internal Railway Postgres connection string:
-
-    NEON_URL="postgresql://..." railway run python backend/migrate_to_neon.py
+Migrate data from a source PostgreSQL database to Neon.
 
 Environment variables:
-    DATABASE_URL  — set automatically by Railway (source Postgres)
-    NEON_URL      — Neon destination connection string
+    SOURCE_DB_URL  — source Postgres connection string
+    NEON_URL       — Neon destination connection string
+
+If either variable is absent the script exits 0 (skipped, not an error),
+so it is safe to leave in a Railway start command permanently.
 """
 
 import os
@@ -18,18 +16,16 @@ import sys
 # Validate environment
 # ---------------------------------------------------------------------------
 
-SOURCE_URL = os.getenv("DATABASE_URL")
+SOURCE_URL = os.getenv("SOURCE_DB_URL")
 DEST_URL = os.getenv("NEON_URL")
 
 if not SOURCE_URL:
-    print("ERROR: DATABASE_URL is not set.")
-    print("       Are you running via `railway run`?  That sets it automatically.")
-    sys.exit(1)
+    print("migrate_to_neon: SOURCE_DB_URL is not set — skipping migration.")
+    sys.exit(0)
 
 if not DEST_URL:
-    print("ERROR: NEON_URL is not set.  Pass it inline:")
-    print("       NEON_URL='postgresql://...' railway run python backend/migrate_to_neon.py")
-    sys.exit(1)
+    print("migrate_to_neon: NEON_URL is not set — skipping migration.")
+    sys.exit(0)
 
 # SQLAlchemy 2.x requires postgresql://, not postgres://
 def _fix_url(url: str) -> str:
