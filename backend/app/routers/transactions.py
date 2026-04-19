@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, extract, func, or_
+from sqlalchemy import case, desc, extract, func, or_
 from sqlalchemy.orm import Session, selectinload
 from typing import Optional, List
 from datetime import date
@@ -511,10 +511,15 @@ def monthly_trend(
         )
     if start_date and end_date:
         q = q.filter(Transaction.date >= start_date, Transaction.date <= end_date)
-    q = q.group_by("year", "month").order_by("year", "month")
+    q = q.group_by("year", "month")
     if not (start_date and end_date):
-        q = q.limit(months)
-    rows = q.all()
+        # No explicit range: fetch the N most-recent months (desc), then
+        # reverse so the chart receives them in chronological order.
+        rows = list(reversed(
+            q.order_by(desc("year"), desc("month")).limit(months).all()
+        ))
+    else:
+        rows = q.order_by("year", "month").all()
     return [
         {
             "year": int(r.year),
