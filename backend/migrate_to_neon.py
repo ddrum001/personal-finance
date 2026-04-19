@@ -98,6 +98,14 @@ TABLES = [
 # Tables whose integer PKs are backed by a SERIAL sequence.
 # After migration we must advance each sequence past the max copied ID
 # so future inserts don't collide.
+# Rows committed per round-trip to the destination.
+# Smaller = more round-trips but less work lost if the process is killed.
+# 250 keeps each batch well under 1 MB and under ~2 s at 200 ms RTT.
+BATCH_SIZE = 250
+
+# Tables whose integer PKs are backed by a SERIAL sequence.
+# After migration we must advance each sequence past the max copied ID
+# so future inserts don't collide.
 SERIAL_PK_TABLES = {
     "budget_categories",
     "category_keywords",
@@ -149,12 +157,27 @@ with src_engine.connect() as src, dst_engine.connect() as dst:
 
         dst_before = dst.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
 
-        try:
-            dst.execute(insert_sql, [dict(r) for r in rows])
-            dst.commit()
-        except Exception as exc:
-            dst.rollback()
-            print(f"  {table}: ERROR during insert — {exc}")
+        # Insert in small batches so each chunk is durable immediately.
+        # If the process is killed mid-table, the committed chunks are kept
+        # and a re-run skips them via ON CONFLICT DO NOTHING.
+        row_dicts  = [dict(r) for r in rows]
+        n_batches  = (len(row_dicts) + BATCH_SIZE - 1) // BATCH_SIZE
+        batch_errs = 0
+        for i in range(0, len(row_dicts), BATCH_SIZE):
+            chunk = row_dicts[i : i + BATCH_SIZE]
+            batch_num = i // BATCH_SIZE + 1
+            if n_batches > 1:
+                print(f"  {table}: batch {batch_num}/{n_batches} ({len(chunk)} rows)…", flush=True)
+            try:
+                dst.execute(insert_sql, chunk)
+                dst.commit()
+            except Exception as exc:
+                dst.rollback()
+                print(f"  {table}: ERROR in batch {batch_num} — {exc}")
+                batch_errs += 1
+
+        if batch_errs:
+            print(f"  {table}: {batch_errs} batch(es) failed — partial data may be present")
             continue
 
         dst_after = dst.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
