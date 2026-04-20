@@ -8,6 +8,9 @@ services:
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
       # Neon Postgres — paste your full postgresql:// connection string
       - key: DATABASE_URL
         sync: false
