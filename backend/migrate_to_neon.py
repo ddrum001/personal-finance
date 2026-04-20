@@ -118,6 +118,25 @@ SERIAL_PK_TABLES = {
 # ---------------------------------------------------------------------------
 
 print("=" * 60)
+print("Step 1b — Source DB diagnostics")
+print("=" * 60)
+
+with src_engine.connect() as src:
+    db_name = src.execute(text("SELECT current_database()")).scalar()
+    print(f"  source database: {db_name}")
+
+    txn_count = src.execute(text("SELECT COUNT(*) FROM transactions")).scalar()
+    print(f"  transactions row count: {txn_count}")
+
+    tables = src.execute(text(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'public' ORDER BY table_name"
+    )).scalars().all()
+    print(f"  public tables ({len(tables)}): {', '.join(tables)}")
+
+print()
+
+print("=" * 60)
 print("Step 2 — Copying data")
 print("=" * 60)
 
