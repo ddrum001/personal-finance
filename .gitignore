@@ -27,3 +27,4 @@ dist/
 
 # Local one-off scripts with hardcoded credentials
 backend/migrate_transactions_local.py
+backend/migrate_keywords_local.py

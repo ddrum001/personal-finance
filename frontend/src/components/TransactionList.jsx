@@ -352,8 +352,8 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                       <button onClick={cancelEdit} className="btn btn-muted btn-sm">Cancel</button>
                     </div>
                   ) : (
-                    <>
-                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block' }}>
                         {t.budget_sub_category}
                       </span>
                       <div style={{ display: 'flex', gap: 4 }}>
@@ -361,7 +361,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                         <button onClick={() => startEdit(t)} className="btn btn-ghost-accent btn-sm">Change</button>
                         <button onClick={() => handleRejectSuggestion(t)} className="btn btn-ghost-danger btn-sm" title="Wrong category — move to Needs Category">✗ Defer</button>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               ))}
