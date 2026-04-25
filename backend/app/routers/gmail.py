@@ -512,6 +512,11 @@ def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
             skipped += 1
             continue
 
+        # $0.00 orders are paid entirely with credits/gift cards — no bank transaction to match
+        if parsed.get("order_total") == 0.0:
+            skipped += 1
+            continue
+
         order = AmazonOrder(
             order_id=parsed["order_id"],
             order_date=parsed.get("order_date"),
@@ -540,7 +545,12 @@ def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
 @router.get("/amazon/orders")
 def list_amazon_orders(request: Request, db: Session = Depends(get_db)):
     _get_user_email(request)  # auth check
-    orders = db.query(AmazonOrder).order_by(AmazonOrder.order_date.desc()).all()
+    orders = (
+        db.query(AmazonOrder)
+        .filter(or_(AmazonOrder.order_total.is_(None), AmazonOrder.order_total != 0.0))
+        .order_by(AmazonOrder.order_date.desc())
+        .all()
+    )
     result = []
     for o in orders:
         txn = db.get(Transaction, o.transaction_id) if o.transaction_id else None
