@@ -512,11 +512,6 @@ def sync_amazon_orders(request: Request, db: Session = Depends(get_db)):
             skipped += 1
             continue
 
-        # $0.00 orders are paid entirely with credits/gift cards — no bank transaction to match
-        if parsed.get("order_total") == 0.0:
-            skipped += 1
-            continue
-
         order = AmazonOrder(
             order_id=parsed["order_id"],
             order_date=parsed.get("order_date"),
