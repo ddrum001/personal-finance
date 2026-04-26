@@ -19,8 +19,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     setExpandedAmazon(prev => { const n = new Set(prev); n.delete(txnId); return n })
     onUpdated?.()
   }
-  const [selectedInstitution, setSelectedInstitution] = useState(null)
-  const [selectedAccount, setSelectedAccount] = useState(null)
+  const [selectedAccounts, setSelectedAccounts] = useState(new Set())
   const [amazonFilter, setAmazonFilter] = useState(null) // null | 'linked' | 'unlinked'
   const [markingAll, setMarkingAll] = useState(false)
   // Map of id → transaction snapshot for transactions reviewed this session
@@ -48,7 +47,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     // Pre-fill with first word of merchant/name on first open; don't overwrite if already edited
     setKwInput(prev => prev[id] !== undefined ? prev : {
       ...prev,
-      [id]: (txn.merchant_name || txn.name || '').toLowerCase().split(' ')[0],
+      [id]: (txn.original_description || txn.merchant_name || txn.name || '').toLowerCase().split(' ')[0],
     })
     setKwStatus(prev => ({ ...prev, [id]: null }))
   }
@@ -76,7 +75,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
     try {
       const result = await applyKeywords()  // global — applies to all unlabeled transactions
-      const searchText = `${txn.name || ''} ${txn.merchant_name || ''}`.toLowerCase()
+      const searchText = `${txn.name || ''} ${txn.merchant_name || ''} ${txn.original_description || ''}`.toLowerCase()
       const thisMatched = searchText.includes(keyword)
       setKwCount(prev => ({ ...prev, [txn.transaction_id]: result.labeled }))
       if (thisMatched) {
@@ -167,26 +166,25 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const startEdit = (t) => { setEditing(t.transaction_id); setNewBudgetSubCategory(t.budget_sub_category || null) }
   const cancelEdit = () => { setEditing(null); setNewBudgetSubCategory(null) }
 
-  // Build institution → accounts map from the transaction data itself
-  const institutions = useMemo(() => {
-    const map = new Map()
+  // Flat account list derived from transaction data
+  const allAccounts = useMemo(() => {
+    const seen = new Set()
+    const result = []
     transactions.forEach((t) => {
-      if (!t.institution_name) return
-      if (!map.has(t.institution_name)) map.set(t.institution_name, new Map())
-      if (t.account_id && !map.get(t.institution_name).has(t.account_id)) {
-        map.get(t.institution_name).set(t.account_id, { account_id: t.account_id, name: t.account_name, mask: t.account_mask })
-      }
+      if (!t.account_id || seen.has(t.account_id)) return
+      seen.add(t.account_id)
+      const inst = t.institution_name?.split(' ')[0] ?? ''
+      const label = inst + (t.account_mask ? ` ····${t.account_mask}` : (t.account_name ? ` ${t.account_name.split(' ')[0]}` : ''))
+      result.push({ account_id: t.account_id, label })
     })
-    return [...map.entries()].map(([name, accts]) => ({ name, accounts: [...accts.values()] }))
+    return result
   }, [transactions])
 
-  const selectInstitution = (name) => {
-    setSelectedInstitution(name === selectedInstitution ? null : name)
-    setSelectedAccount(null)
-  }
-  const selectAccount = (id) => {
-    setSelectedAccount(id === selectedAccount ? null : id)
-  }
+  const toggleAccount = (id) => setSelectedAccounts(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
 
   const currentIds = useMemo(() => new Set(transactions.map((t) => t.transaction_id)), [transactions])
 
@@ -206,18 +204,13 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
   const visible = [
     ...withOverrides.filter((t) => {
-      if (selectedAccount && t.account_id !== selectedAccount) return false
-      if (selectedInstitution && t.institution_name !== selectedInstitution) return false
+      if (selectedAccounts.size > 0 && !selectedAccounts.has(t.account_id)) return false
       if (amazonFilter === 'linked' && !t.amazon_order) return false
       if (amazonFilter === 'unlinked' && t.amazon_order) return false
       return true
     }),
     ...recentlyReviewedRows,
   ]
-
-  const accountsForSelected = selectedInstitution
-    ? institutions.find((i) => i.name === selectedInstitution)?.accounts ?? []
-    : []
 
   return (
     <>
@@ -231,55 +224,38 @@ export default function TransactionList({ transactions, onUpdated, categories, r
       )}
 
       {/* ── Account filter bar ── */}
-      {institutions.length > 0 && (
+      {allAccounts.length > 1 && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Institution:</span>
-            {institutions.map((inst) => (
-              <button
-                key={inst.name}
-                onClick={() => selectInstitution(inst.name)}
-                style={{
-                  padding: '4px 12px', border: '1px solid #ddd', borderRadius: 20, fontSize: 12,
-                  cursor: 'pointer', fontWeight: 600,
-                  background: selectedInstitution === inst.name ? '#6366f1' : '#fff',
-                  color: selectedInstitution === inst.name ? '#fff' : '#444',
-                }}
-              >
-                {inst.name}
-              </button>
-            ))}
-            {selectedInstitution && (
-              <button
-                onClick={() => { setSelectedInstitution(null); setSelectedAccount(null) }}
-                style={{ padding: '4px 10px', border: 'none', background: 'none', color: '#6366f1', fontSize: 12, cursor: 'pointer' }}
-              >
-                Clear ×
-              </button>
-            )}
-          </div>
-
-          {accountsForSelected.length > 1 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 6, paddingLeft: 8 }}>
-              <span style={{ fontSize: 12, color: '#aaa', marginRight: 4 }}>Account:</span>
-              {accountsForSelected.map((a) => (
+          <div style={{ display: 'flex', overflowX: 'auto', gap: 6, alignItems: 'center', marginBottom: 8, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
+            <button
+              onClick={() => setSelectedAccounts(new Set())}
+              style={{
+                flexShrink: 0, padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
+                cursor: 'pointer', fontWeight: selectedAccounts.size === 0 ? 600 : 400,
+                background: selectedAccounts.size === 0 ? '#6366f1' : '#f9fafb',
+                color: selectedAccounts.size === 0 ? '#fff' : '#555',
+                borderColor: selectedAccounts.size === 0 ? '#6366f1' : '#e5e7eb',
+              }}
+            >All</button>
+            {allAccounts.map((a) => {
+              const active = selectedAccounts.has(a.account_id)
+              return (
                 <button
                   key={a.account_id}
-                  onClick={() => selectAccount(a.account_id)}
+                  onClick={() => toggleAccount(a.account_id)}
                   style={{
-                    padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
-                    cursor: 'pointer',
-                    background: selectedAccount === a.account_id ? '#6366f1' : '#f9fafb',
-                    color: selectedAccount === a.account_id ? '#fff' : '#555',
+                    flexShrink: 0, padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
+                    cursor: 'pointer', fontWeight: active ? 600 : 400,
+                    background: active ? '#6366f1' : '#f9fafb',
+                    color: active ? '#fff' : '#555',
+                    borderColor: active ? '#6366f1' : '#e5e7eb',
                   }}
-                >
-                  {a.name || 'Account'}{a.mask ? ` ••••${a.mask}` : ''}
-                </button>
-              ))}
-            </div>
-          )}
+                >{a.label}</button>
+              )
+            })}
+          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Amazon:</span>
             {[
               { value: null, label: 'All' },
@@ -355,7 +331,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                 }}>
                   <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
                   <div style={{ flex: 1, minWidth: 120 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t.original_description || t.merchant_name || t.name}</div>
                     {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
                     {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, display: 'inline-block' }}>CSV</div>}
                     <AccountBadge t={t} />
@@ -438,7 +414,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap', minWidth: 80 }}>{t.date}</span>
                     <div style={{ flex: 1, minWidth: 120 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{t.original_description || t.merchant_name || t.name}</div>
                       {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
                       {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, display: 'inline-block' }}>CSV</div>}
                       <AccountBadge t={t} />
@@ -601,7 +577,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   <tr key={t.transaction_id} style={{ borderTop: '1px solid #ddd', background: t._justReviewed ? '#f0fdf4' : hasSplits ? '#fdfaf3' : undefined, opacity: t._justReviewed ? 0.7 : 1 }}>
                     <td style={{ verticalAlign: 'top' }}>{t.date}</td>
                     <td style={{ verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: hasSplits ? 600 : undefined }}>{t.merchant_name || t.name}</div>
+                      <div style={{ fontWeight: hasSplits ? 600 : undefined }}>{t.original_description || t.merchant_name || t.name}</div>
                       {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
                       {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, marginTop: 2, display: 'inline-block' }}>CSV</div>}
                       {hasSplits && <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>SPLIT ({t.splits.length})</div>}
@@ -709,7 +685,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
             <div key={t.transaction_id} className="txn-card" style={{ background: t._justReviewed ? '#f0fdf4' : hasSplits ? '#fdfaf3' : undefined, opacity: t._justReviewed ? 0.7 : 1 }}>
               <div className="txn-card-top">
                 <div style={{ flex: 1 }}>
-                  <div className="txn-card-merchant">{t.merchant_name || t.name}</div>
+                  <div className="txn-card-merchant">{t.original_description || t.merchant_name || t.name}</div>
                   {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
                   {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, marginTop: 2, display: 'inline-block' }}>CSV</div>}
                   {hasSplits && <div className="txn-split-badge">SPLIT ({t.splits.length})</div>}

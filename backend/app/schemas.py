@@ -79,6 +79,7 @@ class TransactionOut(BaseModel):
     institution_name: Optional[str] = None
     needs_review: bool = False
     notes: Optional[str] = None
+    original_description: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

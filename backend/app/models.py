@@ -73,6 +73,7 @@ class Transaction(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     budget_sub_category = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
+    original_description = Column(String, nullable=True)
     splits = relationship("TransactionSplit", back_populates="transaction", cascade="all, delete-orphan")
 
 

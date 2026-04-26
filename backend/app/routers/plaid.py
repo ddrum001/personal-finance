@@ -413,6 +413,7 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
                 item_id=item.item_id,
                 institution_name=item.institution_name,
                 name=txn["name"],
+                original_description=txn.get("original_description"),
                 amount=txn["amount"],
                 date=txn["date"],
                 category=category_str,
@@ -480,6 +481,7 @@ def _sync_item(item: PlaidItem, client: plaid_api.PlaidApi, manual_accts_by_inst
             existing = db.get(Transaction, txn["transaction_id"])
             if existing:
                 existing.name = txn["name"]
+                existing.original_description = txn.get("original_description")
                 existing.amount = txn["amount"]
                 existing.pending = txn.get("pending", False)
                 modified += 1
