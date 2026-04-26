@@ -159,6 +159,7 @@ def find_duplicates(db: Session = Depends(get_db), days: int = 3):
             "budget_category": bc.category if bc else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "pending": t.pending,
+            "notes": t.notes,
         }
 
     dismissed = {

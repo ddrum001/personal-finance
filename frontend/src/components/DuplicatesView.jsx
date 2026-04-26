@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getDuplicateTransactions, deleteTransaction, dismissDuplicateGroup } from '../api/client'
+import { getDuplicateTransactions, deleteTransaction, dismissDuplicateGroup, updateTransactionNotes } from '../api/client'
 
 const fmt = (n) => n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
@@ -10,6 +10,9 @@ export default function DuplicatesView({ onResolved }) {
   const [deleting, setDeleting] = useState(null)       // transaction_id being deleted
   const [dismissing, setDismissing] = useState(null)   // group index being dismissed
   const [error, setError] = useState(null)
+  const [noteOpen, setNoteOpen] = useState({})
+  const [noteInput, setNoteInput] = useState({})
+  const [noteSaving, setNoteSaving] = useState({})
 
   const load = async () => {
     setLoading(true); setError(null)
@@ -37,6 +40,23 @@ export default function DuplicatesView({ onResolved }) {
       await load()
     } finally {
       setDeleting(null)
+    }
+  }
+
+  const handleSaveNote = async (txnId) => {
+    const note = (noteInput[txnId] ?? '').trim()
+    setNoteSaving(prev => ({ ...prev, [txnId]: true }))
+    try {
+      await updateTransactionNotes(txnId, note || null)
+      setGroups(prev => prev.map(g => ({
+        ...g,
+        transactions: g.transactions.map(t =>
+          t.transaction_id === txnId ? { ...t, notes: note || null } : t
+        ),
+      })))
+      setNoteOpen(prev => ({ ...prev, [txnId]: false }))
+    } finally {
+      setNoteSaving(prev => ({ ...prev, [txnId]: false }))
     }
   }
 
@@ -125,6 +145,35 @@ export default function DuplicatesView({ onResolved }) {
                       {t.budget_sub_category || 'Uncategorized'}
                     </span>
                   </div>
+
+                  {/* Row 2b: notes */}
+                  {noteOpen[t.transaction_id] ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        value={noteInput[t.transaction_id] ?? ''}
+                        onChange={e => setNoteInput(prev => ({ ...prev, [t.transaction_id]: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleSaveNote(t.transaction_id)
+                          if (e.key === 'Escape') setNoteOpen(prev => ({ ...prev, [t.transaction_id]: false }))
+                        }}
+                        placeholder="Add a note…"
+                        autoFocus
+                        style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: 4, flex: 1 }}
+                      />
+                      <button onClick={() => handleSaveNote(t.transaction_id)} disabled={noteSaving[t.transaction_id]} className="btn btn-primary btn-sm">{noteSaving[t.transaction_id] ? '…' : 'Save'}</button>
+                      <button onClick={() => setNoteOpen(prev => ({ ...prev, [t.transaction_id]: false }))} className="btn btn-muted btn-sm">Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {t.notes && <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📝 {t.notes}</span>}
+                      <button
+                        onClick={() => { setNoteInput(prev => ({ ...prev, [t.transaction_id]: t.notes || '' })); setNoteOpen(prev => ({ ...prev, [t.transaction_id]: true })) }}
+                        style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 4px' }}
+                        title={t.notes ? 'Edit note' : 'Add note'}
+                      >{t.notes ? '✏' : '+ note'}</button>
+                    </div>
+                  )}
 
                   {/* Row 3: action */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 2 }}>
