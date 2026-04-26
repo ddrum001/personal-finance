@@ -24,6 +24,7 @@ def list_transactions(
     budget_category: Optional[str] = Query(None),
     budget_macro_category: Optional[str] = Query(None),
     account_id: Optional[str] = Query(None),
+    account_ids: List[str] = Query(default=[]),
     needs_review: Optional[bool] = Query(None),
     limit: int = Query(500, le=2000),
     offset: int = Query(0),
@@ -51,7 +52,9 @@ def list_transactions(
             cat_ids = cat_ids.filter(BudgetCategory.macro_category == budget_macro_category)
         sub_cats = [r[0] for r in cat_ids.all()]
         q = q.filter(Transaction.budget_sub_category.in_(sub_cats))
-    if account_id:
+    if account_ids:
+        q = q.filter(Transaction.account_id.in_(account_ids))
+    elif account_id:
         q = q.filter(Transaction.account_id == account_id)
     excluded_ids = {a.account_id for a in db.query(Account).filter(Account.is_excluded == True).all()}
     if excluded_ids:

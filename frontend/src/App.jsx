@@ -44,7 +44,7 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState(false)
   const [duplicatesMode, setDuplicatesMode] = useState(false)
   const [catFilter, setCatFilter] = useState([])
-  const [accountFilter, setAccountFilter] = useState(null)
+  const [accountFilters, setAccountFilters] = useState([])
   const [txnOffset, setTxnOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const PAGE_SIZE = 500
@@ -75,7 +75,7 @@ export default function App() {
     if (!user) return
     const params = reviewMode
       ? { needsReview: true, limit: 2000 }
-      : { startDate, endDate, limit: PAGE_SIZE, offset: 0, ...catParams, ...(accountFilter ? { accountId: accountFilter } : {}) }
+      : { startDate, endDate, limit: PAGE_SIZE, offset: 0, ...catParams, ...(accountFilters.length ? { accountIds: accountFilters } : {}) }
     const [txns, linkedItems] = await Promise.all([
       getTransactions(params),
       listItems(),
@@ -84,15 +84,15 @@ export default function App() {
     setItems(linkedItems)
     setTxnOffset(0)
     setHasMore(!reviewMode && txns.length === PAGE_SIZE)
-  }, [user, startDate, endDate, reviewMode, catFilter, accountFilter])
+  }, [user, startDate, endDate, reviewMode, catFilter, accountFilters])
 
   const loadMore = useCallback(async () => {
     const nextOffset = txnOffset + PAGE_SIZE
-    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset, ...catParams, ...(accountFilter ? { accountId: accountFilter } : {}) })
+    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset, ...catParams, ...(accountFilters.length ? { accountIds: accountFilters } : {}) })
     setTransactions(prev => [...prev, ...more])
     setTxnOffset(nextOffset)
     setHasMore(more.length === PAGE_SIZE)
-  }, [startDate, endDate, txnOffset, catFilter, accountFilter])
+  }, [startDate, endDate, txnOffset, catFilter, accountFilters])
 
   useEffect(() => { loadData() }, [loadData])
   const refreshCategories = useCallback(() => {
@@ -199,32 +199,40 @@ export default function App() {
           {tab === 'transactions' && !reviewMode && !duplicatesMode && items.length > 0 && (() => {
             const accounts = items.flatMap(i => (i.accounts || []).map(a => ({
               account_id: a.account_id,
-              label: `${a.nickname || a.name}${a.mask ? ` ····${a.mask}` : ''}`,
+              label: `${(a.nickname || a.name).split(' ')[0]}${a.mask ? ` ····${a.mask}` : ''}`,
             })))
             if (accounts.length < 2) return null
+            const toggleAccount = (id) => setAccountFilters(prev =>
+              prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+            )
             return (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Account:</span>
-                {accounts.map(a => (
-                  <button
-                    key={a.account_id}
-                    onClick={() => setAccountFilter(accountFilter === a.account_id ? null : a.account_id)}
-                    style={{
-                      padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-                      fontWeight: accountFilter === a.account_id ? 600 : 400,
-                      background: accountFilter === a.account_id ? '#6366f1' : '#f9fafb',
-                      color: accountFilter === a.account_id ? '#fff' : '#555',
-                      border: `1px solid ${accountFilter === a.account_id ? '#6366f1' : '#e5e7eb'}`,
-                    }}
-                  >
-                    {a.label}
-                  </button>
-                ))}
-                {accountFilter && (
-                  <button onClick={() => setAccountFilter(null)} style={{ padding: '4px 8px', border: 'none', background: 'none', color: '#6366f1', fontSize: 12, cursor: 'pointer' }}>
-                    Clear ×
-                  </button>
-                )}
+              <div style={{ display: 'flex', overflowX: 'auto', gap: 6, alignItems: 'center', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
+                <button
+                  onClick={() => setAccountFilters([])}
+                  style={{
+                    flexShrink: 0, padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                    fontWeight: accountFilters.length === 0 ? 600 : 400,
+                    background: accountFilters.length === 0 ? '#6366f1' : '#f9fafb',
+                    color: accountFilters.length === 0 ? '#fff' : '#555',
+                    border: `1px solid ${accountFilters.length === 0 ? '#6366f1' : '#e5e7eb'}`,
+                  }}
+                >All</button>
+                {accounts.map(a => {
+                  const active = accountFilters.includes(a.account_id)
+                  return (
+                    <button
+                      key={a.account_id}
+                      onClick={() => toggleAccount(a.account_id)}
+                      style={{
+                        flexShrink: 0, padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                        fontWeight: active ? 600 : 400,
+                        background: active ? '#6366f1' : '#f9fafb',
+                        color: active ? '#fff' : '#555',
+                        border: `1px solid ${active ? '#6366f1' : '#e5e7eb'}`,
+                      }}
+                    >{a.label}</button>
+                  )
+                })}
               </div>
             )
           })()}
