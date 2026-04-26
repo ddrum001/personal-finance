@@ -60,6 +60,14 @@ FORMATS = {
         "amount_sign": "native",
         "running_bal_col": "Running Bal.",
     },
+    "google_sheet": {
+        "date_col": "Date",
+        "desc_col": "Transaction",
+        "amount_col": "Amount",
+        "category_col": "Assigned Sub-Category",
+        # Negative = expense, positive = income — same convention as BofA
+        "amount_sign": "native",
+    },
 }
 
 
@@ -84,6 +92,8 @@ def detect_format(headers: list[str]) -> Optional[str]:
         return "chase"
     if "posted date" in h and "payee" in h:
         return "bofa_credit"
+    if "assigned sub-category" in h:
+        return "google_sheet"
     if "date" in h and "description" in h and "amount" in h:
         return "bofa_checking"
     return None
@@ -219,6 +229,7 @@ async def import_csv(
                     "Chase": "Transaction Date, Post Date, Description, Category, Type, Amount",
                     "Bank of America credit": "Posted Date, Reference #, Payee, Address, Amount",
                     "Bank of America checking": "Date, Description, Amount, Running Bal.",
+                    "Google Sheet": "Date, Amount, Transaction, Source, Assigned Sub-Category",
                 },
             },
         )
