@@ -9,7 +9,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable is required")
 
-# Railway provides postgres:// URLs; SQLAlchemy 2.x requires postgresql://
+# Some Postgres hosts (e.g. legacy Railway) provide postgres:// URLs; SQLAlchemy 2.x requires postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
