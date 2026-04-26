@@ -19,6 +19,7 @@ from datetime import date as date_type
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -163,8 +164,7 @@ def get_or_create_account(
     acct_subtype: str,
     db: Session,
 ) -> Account:
-    # Find existing account under this item by name + subtype first,
-    # so re-imports don't splinter into new accounts when the hash prefix differs
+    # 1. Exact match under this item (name + subtype) — fast path for re-imports
     existing = db.query(Account).filter(
         Account.item_id == item_id,
         Account.name == account_name,
@@ -175,6 +175,17 @@ def get_or_create_account(
             existing.mask = mask
             db.commit()
         return existing
+
+    # 2. Case-insensitive name match across ALL accounts so that importing to a
+    #    Plaid-synced account with the same display name doesn't create a duplicate.
+    existing_any = db.query(Account).filter(
+        func.lower(Account.name) == account_name.lower(),
+    ).first()
+    if existing_any:
+        if mask and not existing_any.mask:
+            existing_any.mask = mask
+            db.commit()
+        return existing_any
 
     key = f"{item_id}_{account_name.lower().replace(' ', '_')}_{mask or ''}"
     account_id = "manual_acct_" + hashlib.sha1(key.encode()).hexdigest()[:12]
@@ -257,7 +268,11 @@ async def import_csv(
                 account_subtype,
                 db,
             )
-            effective_institution = institution_name
+            # If the name-match returned an account from a different item (e.g. a
+            # Plaid-synced account), use that item so transactions get the right item_id.
+            if account.item_id != item.item_id:
+                item = db.get(PlaidItem, account.item_id) or item
+            effective_institution = item.institution_name or institution_name
             display_account = f"{account_name}{' ••••' + account_mask if account_mask else ''}"
     except HTTPException:
         raise
