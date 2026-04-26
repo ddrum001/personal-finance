@@ -115,6 +115,7 @@ def list_transactions(
             "institution_name": t.institution_name or (item.institution_name if item else None),
             "needs_review": t.needs_review or False,
             "notes": t.notes,
+            "source": "csv" if item and item.access_token == "manual" else "plaid",
             "amazon_order": {
                 "id": ao.id,
                 "order_id": ao.order_id,

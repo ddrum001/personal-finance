@@ -14,6 +14,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
   const [accountMask, setAccountMask] = useState('')
   const [accountType, setAccountType] = useState('credit')
   const [accountSubtype, setAccountSubtype] = useState('credit card')
+  const [selectedAccountId, setSelectedAccountId] = useState(null)
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
@@ -30,6 +31,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
         if (!map[inst]) map[inst] = []
         for (const acct of item.accounts) {
           map[inst].push({
+            account_id: acct.account_id,
             name: acct.name,
             mask: acct.mask || '',
             type: acct.type || 'credit',
@@ -50,6 +52,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
           setAccountMask(acct.mask)
           setAccountType(acct.type)
           setAccountSubtype(acct.subtype)
+          setSelectedAccountId(acct.account_id)
         }
       } else {
         setInstitution('Other')
@@ -64,13 +67,17 @@ export default function ImportCsvModal({ onClose, onImported }) {
 
   const handleInstitutionChange = (inst) => {
     setInstitution(inst)
+    setSelectedAccountId(null)
     const accts = inst === 'Other' ? [] : (sourcesByInstitution[inst] ?? [])
     if (accts.length > 0) {
       setAccountName(accts[0].name)
+      setAccountMask(accts[0].mask)
       setAccountType(accts[0].type)
       setAccountSubtype(accts[0].subtype)
+      setSelectedAccountId(accts[0].account_id)
     } else {
       setAccountName('')
+      setAccountMask('')
       setAccountType('credit')
       setAccountSubtype('credit card')
     }
@@ -78,8 +85,10 @@ export default function ImportCsvModal({ onClose, onImported }) {
 
   const handlePreset = (preset) => {
     setAccountName(preset.name)
+    setAccountMask(preset.mask)
     setAccountType(preset.type)
     setAccountSubtype(preset.subtype)
+    setSelectedAccountId(preset.account_id)
   }
 
   const handleFileChange = (e) => {
@@ -101,6 +110,7 @@ export default function ImportCsvModal({ onClose, onImported }) {
       fd.append('account_mask', accountMask)
       fd.append('account_type', accountType)
       fd.append('account_subtype', accountSubtype)
+      if (selectedAccountId) fd.append('account_id', selectedAccountId)
       const res = await importCsv(fd)
       setResult(res)
       onImported?.()
@@ -142,8 +152,9 @@ export default function ImportCsvModal({ onClose, onImported }) {
                 </div>
                 {result.added > 0 && (
                   <div style={{ marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    <span style={{ color: '#166534' }}>🏷 <strong>{result.keywords_applied}</strong> auto-categorized</span>
-                    {result.keywords_unmatched > 0 && <span style={{ color: '#92400e' }}>⚠ {result.keywords_unmatched} need review</span>}
+                    {result.category_matched > 0 && <span style={{ color: '#166534' }}>📂 <strong>{result.category_matched}</strong> categories matched</span>}
+                    {result.keywords_applied > 0 && <span style={{ color: '#166534' }}>🏷 <strong>{result.keywords_applied}</strong> keyword-matched</span>}
+                    {result.category_unmatched - result.keywords_applied > 0 && <span style={{ color: '#92400e' }}>⚠ {result.category_unmatched - result.keywords_applied} need review</span>}
                   </div>
                 )}
               </div>
@@ -209,12 +220,24 @@ export default function ImportCsvModal({ onClose, onImported }) {
                   ))}
                 </div>
               )}
-              <input
-                value={accountName}
-                onChange={(e) => setAccountName(e.target.value)}
-                placeholder="Account name"
-                style={inputStyle}
-              />
+              {selectedAccountId ? (
+                <div style={{ ...inputStyle, background: '#f9fafb', color: '#374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{accountName}{accountMask ? ` ····${accountMask}` : ''}</span>
+                  <button
+                    onClick={() => setSelectedAccountId(null)}
+                    style={{ fontSize: 11, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <input
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="Account name"
+                  style={inputStyle}
+                />
+              )}
             </div>
 
             {/* File picker */}

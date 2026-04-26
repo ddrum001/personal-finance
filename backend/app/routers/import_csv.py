@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from ..database import get_db
-from ..models import Account, PlaidItem, Transaction
+from ..models import Account, BudgetCategory, PlaidItem, Transaction
 from .categories import apply_keywords_to_transactions
 
 router = APIRouter(prefix="/import", tags=["import"])
@@ -194,6 +194,7 @@ async def import_csv(
     account_mask: str = Form(""),
     account_type: str = Form("credit"),       # credit | depository
     account_subtype: str = Form("credit card"),  # credit card | checking | savings
+    account_id: Optional[str] = Form(None),   # real Plaid account_id, bypasses synthetic creation
     db: Session = Depends(get_db),
 ):
     content = await file.read()
@@ -224,22 +225,42 @@ async def import_csv(
 
     fmt = FORMATS[fmt_key]
     try:
-        item = get_or_create_item(institution_name, db)
-        account = get_or_create_account(
-            item.item_id,
-            account_name,
-            account_mask.strip() or None,
-            account_type,
-            account_subtype,
-            db,
-        )
+        if account_id:
+            real_acct = db.get(Account, account_id)
+            if not real_acct:
+                raise HTTPException(status_code=422, detail={"message": f"Account {account_id!r} not found"})
+            real_item = db.get(PlaidItem, real_acct.item_id)
+            if not real_item:
+                raise HTTPException(status_code=422, detail={"message": "Account's Plaid item not found"})
+            account = real_acct
+            item = real_item
+            effective_institution = real_item.institution_name or institution_name
+            display_account = f"{real_acct.nickname or real_acct.official_name or real_acct.name}{' ••••' + real_acct.mask if real_acct.mask else ''}"
+        else:
+            item = get_or_create_item(institution_name, db)
+            account = get_or_create_account(
+                item.item_id,
+                account_name,
+                account_mask.strip() or None,
+                account_type,
+                account_subtype,
+                db,
+            )
+            effective_institution = institution_name
+            display_account = f"{account_name}{' ••••' + account_mask if account_mask else ''}"
+    except HTTPException:
+        raise
     except Exception as exc:
         db.rollback()
         logger.error("import_csv: account setup failed: %s\n%s", exc, traceback.format_exc())
         raise HTTPException(status_code=422, detail={"message": f"Account setup failed: {exc}"})
 
+    # Build case-insensitive lookup for existing budget sub-categories
+    sub_cat_lookup = {r[0].lower(): r[0] for r in db.query(BudgetCategory.sub_category).all()}
+
     added = skipped = errors = 0
-    new_ids: list[str] = []
+    matched_ids: list[str] = []   # CSV category matched a budget sub-category
+    unmatched_ids: list[str] = [] # no category or no match — go through keyword/review flow
     latest_bal_date: Optional[date_type] = None
     latest_bal: Optional[float] = None
 
@@ -293,6 +314,9 @@ async def import_csv(
         if fmt["category_col"]:
             raw_category = row.get(fmt["category_col"], "").strip() or None
 
+        # Case-insensitive match against known budget sub-categories
+        matched_cat = sub_cat_lookup.get(raw_category.lower()) if raw_category else None
+
         # --- dedup ---
         # 1) Exact ID match (re-importing the same file)
         txn_id = make_txn_id(txn_date, amount, description)
@@ -314,16 +338,20 @@ async def import_csv(
             transaction_id=txn_id,
             account_id=account.account_id,
             item_id=item.item_id,
-            institution_name=institution_name,
+            institution_name=effective_institution,
             name=description,
             merchant_name=description,
             amount=amount,
             date=txn_date,
             category=raw_category,
             pending=False,
-            needs_review=True,
+            budget_sub_category=matched_cat,
+            needs_review=matched_cat is None,
         ))
-        new_ids.append(txn_id)
+        if matched_cat:
+            matched_ids.append(txn_id)
+        else:
+            unmatched_ids.append(txn_id)
         added += 1
 
     try:
@@ -342,16 +370,18 @@ async def import_csv(
             account.balance_updated_at = bal_dt
             db.commit()
 
-    # Apply keyword rules to newly imported transactions only
-    kw_result = apply_keywords_to_transactions(db, transaction_ids=new_ids) if new_ids else {"labeled": 0, "skipped": 0}
+    # Apply keyword rules only to transactions where CSV category didn't match
+    kw_result = apply_keywords_to_transactions(db, transaction_ids=unmatched_ids) if unmatched_ids else {"labeled": 0, "skipped": 0}
 
     return {
         "format_detected": fmt_key,
-        "institution": institution_name,
-        "account": f"{account_name}{' ••••' + account_mask if account_mask else ''}",
+        "institution": effective_institution,
+        "account": display_account,
         "added": added,
         "skipped_duplicates": skipped,
         "errors": errors,
+        "category_matched": len(matched_ids),
+        "category_unmatched": len(unmatched_ids),
         "keywords_applied": kw_result["labeled"],
         "keywords_unmatched": kw_result["skipped"],
     }

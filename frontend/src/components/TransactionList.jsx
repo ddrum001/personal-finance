@@ -357,6 +357,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                   <div style={{ flex: 1, minWidth: 120 }}>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
                     {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
+                    {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, display: 'inline-block' }}>CSV</div>}
                     <AccountBadge t={t} />
                     {noteOpen[t.transaction_id] ? (
                       <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -439,6 +440,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                     <div style={{ flex: 1, minWidth: 120 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{t.merchant_name || t.name}</div>
                       {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>PENDING</div>}
+                      {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, display: 'inline-block' }}>CSV</div>}
                       <AccountBadge t={t} />
                       {noteOpen[t.transaction_id] ? (
                         <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -601,6 +603,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                     <td style={{ verticalAlign: 'top' }}>
                       <div style={{ fontWeight: hasSplits ? 600 : undefined }}>{t.merchant_name || t.name}</div>
                       {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
+                      {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, marginTop: 2, display: 'inline-block' }}>CSV</div>}
                       {hasSplits && <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, marginTop: 2 }}>SPLIT ({t.splits.length})</div>}
                       {t.amazon_order && (
                         <button onClick={() => toggleAmazon(t.transaction_id)} style={{ marginTop: 3, fontSize: 11, color: '#f97316', background: 'none', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 7px', cursor: 'pointer', fontWeight: 600 }}>
@@ -708,6 +711,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                 <div style={{ flex: 1 }}>
                   <div className="txn-card-merchant">{t.merchant_name || t.name}</div>
                   {t.pending && <div style={{ fontSize: 11, color: '#6366f1', fontWeight: 600, marginTop: 2 }}>PENDING</div>}
+                  {t.source === 'csv' && <div style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, marginTop: 2, display: 'inline-block' }}>CSV</div>}
                   {hasSplits && <div className="txn-split-badge">SPLIT ({t.splits.length})</div>}
                   {t.amazon_order && (
                     <button onClick={() => toggleAmazon(t.transaction_id)} style={{ marginTop: 3, fontSize: 11, color: '#f97316', background: 'none', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 7px', cursor: 'pointer', fontWeight: 600 }}>
