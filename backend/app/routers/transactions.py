@@ -114,6 +114,7 @@ def list_transactions(
             "account_subtype": acct.subtype if acct else None,
             "institution_name": t.institution_name or (item.institution_name if item else None),
             "needs_review": t.needs_review or False,
+            "notes": t.notes,
             "amazon_order": {
                 "id": ao.id,
                 "order_id": ao.order_id,
@@ -285,6 +286,10 @@ class BudgetCategoryUpdate(BaseModel):
     budget_sub_category: str
 
 
+class TransactionNotesUpdate(BaseModel):
+    notes: Optional[str] = None
+
+
 @router.patch("/{transaction_id}/budget-category")
 def update_budget_category(
     transaction_id: str,
@@ -303,6 +308,20 @@ def update_budget_category(
     txn.needs_review = False
     db.commit()
     db.refresh(txn)
+    return {"ok": True}
+
+
+@router.patch("/{transaction_id}/notes")
+def update_notes(
+    transaction_id: str,
+    body: TransactionNotesUpdate,
+    db: Session = Depends(get_db),
+):
+    txn = db.get(Transaction, transaction_id)
+    if not txn:
+        raise HTTPException(404, "Transaction not found")
+    txn.notes = body.notes
+    db.commit()
     return {"ok": True}
 
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder, addKeyword, applyKeywords, undoKeyword } from '../api/client'
+import { updateBudgetCategory, markReviewed, markReviewedBulk, flagForReview, acceptSuggestions, rejectSuggestion, unlinkAmazonOrder, addKeyword, applyKeywords, undoKeyword, updateTransactionNotes } from '../api/client'
 import SplitModal from './SplitModal'
 import CategorySelect from './CategorySelect'
 
@@ -36,6 +36,11 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const [kwStatus, setKwStatus] = useState({})     // null | 'loading' | 'success' | 'no-match' | 'conflict' | 'error' | 'undoing'
   const [kwCount, setKwCount] = useState({})       // labeled count from last apply run
   const [kwKeywordId, setKwKeywordId] = useState({}) // saved keyword id for undo
+
+  // Inline note editing (keyed by transaction_id)
+  const [noteOpen, setNoteOpen] = useState({})
+  const [noteInput, setNoteInput] = useState({})
+  const [noteSaving, setNoteSaving] = useState({})
 
   const toggleKwOpen = (txn) => {
     const id = txn.transaction_id
@@ -97,6 +102,18 @@ export default function TransactionList({ transactions, onUpdated, categories, r
       onUpdated?.()
     } catch {
       setKwStatus(prev => ({ ...prev, [txnId]: 'error' }))
+    }
+  }
+
+  const handleSaveNote = async (txnId) => {
+    const note = (noteInput[txnId] ?? '').trim()
+    setNoteSaving(prev => ({ ...prev, [txnId]: true }))
+    try {
+      await updateTransactionNotes(txnId, note || null)
+      applyOverride(txnId, { notes: note || null })
+      setNoteOpen(prev => ({ ...prev, [txnId]: false }))
+    } finally {
+      setNoteSaving(prev => ({ ...prev, [txnId]: false }))
     }
   }
 
@@ -537,6 +554,37 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                         </button>
                       )}
                       <AccountBadge t={t} />
+                      {noteOpen[t.transaction_id] ? (
+                        <div style={{ marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            value={noteInput[t.transaction_id] ?? ''}
+                            onChange={e => setNoteInput(prev => ({ ...prev, [t.transaction_id]: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSaveNote(t.transaction_id)
+                              if (e.key === 'Escape') setNoteOpen(prev => ({ ...prev, [t.transaction_id]: false }))
+                            }}
+                            placeholder="Add a note…"
+                            autoFocus
+                            style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: 4, width: 200 }}
+                          />
+                          <button onClick={() => handleSaveNote(t.transaction_id)} disabled={noteSaving[t.transaction_id]} className="btn btn-primary btn-sm">
+                            {noteSaving[t.transaction_id] ? '…' : 'Save'}
+                          </button>
+                          <button onClick={() => setNoteOpen(prev => ({ ...prev, [t.transaction_id]: false }))} className="btn btn-muted btn-sm">Cancel</button>
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {t.notes && <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📝 {t.notes}</span>}
+                          <button
+                            onClick={() => { setNoteInput(prev => ({ ...prev, [t.transaction_id]: t.notes || '' })); setNoteOpen(prev => ({ ...prev, [t.transaction_id]: true })) }}
+                            style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 4px' }}
+                            title={t.notes ? 'Edit note' : 'Add note'}
+                          >
+                            {t.notes ? '✏' : '+ note'}
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td style={{ color: t.amount > 0 ? '#ef4444' : '#10b981', verticalAlign: 'top' }}>
                       {t.amount > 0 ? '-' : '+'}${Math.abs(t.amount).toFixed(2)}
@@ -627,6 +675,38 @@ export default function TransactionList({ transactions, onUpdated, categories, r
                     : <CategoryPill t={t} />
                 )}
               </div>
+
+              {noteOpen[t.transaction_id] ? (
+                <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={noteInput[t.transaction_id] ?? ''}
+                    onChange={e => setNoteInput(prev => ({ ...prev, [t.transaction_id]: e.target.value }))}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveNote(t.transaction_id)
+                      if (e.key === 'Escape') setNoteOpen(prev => ({ ...prev, [t.transaction_id]: false }))
+                    }}
+                    placeholder="Add a note…"
+                    autoFocus
+                    style={{ fontSize: 12, padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: 4, flex: 1 }}
+                  />
+                  <button onClick={() => handleSaveNote(t.transaction_id)} disabled={noteSaving[t.transaction_id]} className="btn btn-primary btn-sm">
+                    {noteSaving[t.transaction_id] ? '…' : 'Save'}
+                  </button>
+                  <button onClick={() => setNoteOpen(prev => ({ ...prev, [t.transaction_id]: false }))} className="btn btn-muted btn-sm">Cancel</button>
+                </div>
+              ) : (
+                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {t.notes && <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📝 {t.notes}</span>}
+                  <button
+                    onClick={() => { setNoteInput(prev => ({ ...prev, [t.transaction_id]: t.notes || '' })); setNoteOpen(prev => ({ ...prev, [t.transaction_id]: true })) }}
+                    style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 4px' }}
+                    title={t.notes ? 'Edit note' : 'Add note'}
+                  >
+                    {t.notes ? '✏' : '+ note'}
+                  </button>
+                </div>
+              )}
 
               {hasSplits && (
                 <div className="txn-split-rows">

@@ -379,6 +379,16 @@ export async function updateBudgetCategory(transactionId, budgetSubCategory) {
   return res.json()
 }
 
+export async function updateTransactionNotes(transactionId, notes) {
+  const res = await fetch(`${BASE}/transactions/${transactionId}/notes`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes: notes || null }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function importCsv(formData) {
   const res = await fetch(`${BASE}/import/csv`, { method: 'POST', body: formData })
   if (!res.ok) throw new Error(await res.text())

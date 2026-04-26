@@ -45,6 +45,7 @@ _MIGRATIONS = [
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS autopay_fixed_amount FLOAT",
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS autopay_timing VARCHAR",
     "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS autopay_timing_value INTEGER",
+    "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS notes TEXT",
 ]
 _SEEDS = [
     # Only hide true transfer/internal categories — NOT rewards or fees
