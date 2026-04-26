@@ -132,9 +132,17 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
     items = []
     seen = set()
 
+    # Truncate the HTML at the Grand Total / Order Total line before searching for
+    # product links. Amazon emails append post-purchase recommendations after the
+    # total; those sections contain real /dp/ product links that pass every filter
+    # and inflate the item list with ads.
+    html_str = str(soup)
+    total_pos = re.search(r'(?:Grand\s+Total|Order\s+Total)', html_str, re.IGNORECASE)
+    pre_total_soup = BeautifulSoup(html_str[:total_pos.start()], "lxml") if total_pos else soup
+
     # Strategy 1: anchor tags pointing to amazon.com product detail pages (/dp/ or /gp/product/).
     # Deliberately excludes /gp/css/, /gp/your-account/, etc. which are navigation links.
-    for a in soup.find_all("a", href=True):
+    for a in pre_total_soup.find_all("a", href=True):
         href = a.get("href", "")
         text = a.get_text(" ", strip=True)
         if (
@@ -150,14 +158,11 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
     # the product name that appears immediately before each marker.
     # Handles Amazon's newer email format where products are listed as plain text
     # followed by "Quantity: 1" (e.g. "Polaris Vac-Sweep 360... Quantity: 1").
-    # Truncate at "Grand Total" / "Order Total" so ad recommendations after the
-    # total line are never mistaken for purchased items.
     if not items:
         full_text = soup.get_text(" ", strip=True)
         cutoff = re.search(r'(?:Grand Total|Order Total)\s*:', full_text, re.IGNORECASE)
         if cutoff:
             full_text = full_text[:cutoff.start()]
-        # Capture: any text (10–150 chars, no $ or %) ending with optional "..." before Quantity
         qty_inline = re.compile(
             r'([A-Za-z][^$\n%]{9,149}?\.{0,3})\s+Quantity:\s*(\d+)',
             re.IGNORECASE,
@@ -176,7 +181,7 @@ def _extract_items(soup: BeautifulSoup) -> list[dict]:
     # Strategy 3: broad fallback — table cells with substantive text that don't look
     # like boilerplate. Only used if neither strategy above produced results.
     if not items:
-        for td in soup.find_all(["td", "div"]):
+        for td in pre_total_soup.find_all(["td", "div"]):
             text = td.get_text(" ", strip=True)
             lower = text.lower()
             if (
