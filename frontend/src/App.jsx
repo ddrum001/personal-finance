@@ -44,6 +44,7 @@ export default function App() {
   const [reviewMode, setReviewMode] = useState(false)
   const [duplicatesMode, setDuplicatesMode] = useState(false)
   const [catFilter, setCatFilter] = useState([])
+  const [accountFilter, setAccountFilter] = useState(null)
   const [txnOffset, setTxnOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const PAGE_SIZE = 500
@@ -74,7 +75,7 @@ export default function App() {
     if (!user) return
     const params = reviewMode
       ? { needsReview: true, limit: 2000 }
-      : { startDate, endDate, limit: PAGE_SIZE, offset: 0, ...catParams }
+      : { startDate, endDate, limit: PAGE_SIZE, offset: 0, ...catParams, ...(accountFilter ? { accountId: accountFilter } : {}) }
     const [txns, linkedItems] = await Promise.all([
       getTransactions(params),
       listItems(),
@@ -83,15 +84,15 @@ export default function App() {
     setItems(linkedItems)
     setTxnOffset(0)
     setHasMore(!reviewMode && txns.length === PAGE_SIZE)
-  }, [user, startDate, endDate, reviewMode, catFilter])
+  }, [user, startDate, endDate, reviewMode, catFilter, accountFilter])
 
   const loadMore = useCallback(async () => {
     const nextOffset = txnOffset + PAGE_SIZE
-    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset, ...catParams })
+    const more = await getTransactions({ startDate, endDate, limit: PAGE_SIZE, offset: nextOffset, ...catParams, ...(accountFilter ? { accountId: accountFilter } : {}) })
     setTransactions(prev => [...prev, ...more])
     setTxnOffset(nextOffset)
     setHasMore(more.length === PAGE_SIZE)
-  }, [startDate, endDate, txnOffset, catFilter])
+  }, [startDate, endDate, txnOffset, catFilter, accountFilter])
 
   useEffect(() => { loadData() }, [loadData])
   const refreshCategories = useCallback(() => {
@@ -194,6 +195,39 @@ export default function App() {
               onChange={setCatFilter}
             />
           )}
+          {/* Row 2b: account filter (transactions tab, normal mode only) */}
+          {tab === 'transactions' && !reviewMode && !duplicatesMode && items.length > 0 && (() => {
+            const accounts = items.flatMap(i => (i.accounts || []).map(a => ({
+              account_id: a.account_id,
+              label: `${a.nickname || a.name}${a.mask ? ` ····${a.mask}` : ''}`,
+            })))
+            if (accounts.length < 2) return null
+            return (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Account:</span>
+                {accounts.map(a => (
+                  <button
+                    key={a.account_id}
+                    onClick={() => setAccountFilter(accountFilter === a.account_id ? null : a.account_id)}
+                    style={{
+                      padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                      fontWeight: accountFilter === a.account_id ? 600 : 400,
+                      background: accountFilter === a.account_id ? '#6366f1' : '#f9fafb',
+                      color: accountFilter === a.account_id ? '#fff' : '#555',
+                      border: `1px solid ${accountFilter === a.account_id ? '#6366f1' : '#e5e7eb'}`,
+                    }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+                {accountFilter && (
+                  <button onClick={() => setAccountFilter(null)} style={{ padding: '4px 8px', border: 'none', background: 'none', color: '#6366f1', fontSize: 12, cursor: 'pointer' }}>
+                    Clear ×
+                  </button>
+                )}
+              </div>
+            )
+          })()}
           {/* Row 3: mode toggles */}
           {tab === 'transactions' && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
