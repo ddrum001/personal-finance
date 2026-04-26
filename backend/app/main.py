@@ -18,7 +18,6 @@ load_dotenv()
 Base.metadata.create_all(bind=engine)
 
 # Incremental column migrations for existing tables
-# Uses IF NOT EXISTS (supported by both SQLite 3.37+ and PostgreSQL 9.6+)
 _MIGRATIONS = [
     "ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS sync_cursor VARCHAR",
     "ALTER TABLE budget_categories ADD COLUMN IF NOT EXISTS hide_from_reports BOOLEAN DEFAULT FALSE",
@@ -53,17 +52,13 @@ _SEEDS = [
     "UPDATE budget_categories SET hide_from_reports = FALSE WHERE sub_category IN ('Credit Card Rewards', 'Credit Card Fees')",
     "UPDATE transactions SET needs_review = TRUE WHERE budget_sub_category IS NULL",
     # Backfill institution_name from plaid_items for existing transactions
-    # Using correlated subquery (works on both PostgreSQL and SQLite)
     "UPDATE transactions SET institution_name = (SELECT institution_name FROM plaid_items WHERE plaid_items.item_id = transactions.item_id) WHERE institution_name IS NULL",
     "UPDATE amazon_orders SET dismissed = FALSE WHERE dismissed IS NULL",
 ]
 with engine.connect() as _conn:
     for _sql in _MIGRATIONS:
-        try:
-            _conn.execute(text(_sql))
-            _conn.commit()
-        except Exception:
-            pass  # column already exists (older SQLite without IF NOT EXISTS)
+        _conn.execute(text(_sql))
+        _conn.commit()
     for _sql in _SEEDS:
         _conn.execute(text(_sql))
     _conn.commit()
