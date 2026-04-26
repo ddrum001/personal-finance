@@ -16,7 +16,7 @@ if DATABASE_URL.startswith("postgres://"):
 engine = create_engine(
     DATABASE_URL,
     # pool_pre_ping revalidates connections before use, preventing stale-connection
-    # errors after Neon/Railway compute cold starts or idle timeouts.
+    # errors after Neon/Render compute cold starts or idle timeouts.
     # pool_recycle evicts connections older than 5 minutes as a belt-and-suspenders
     # measure alongside pre_ping.
     pool_pre_ping=True,
