@@ -305,7 +305,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
         {visible.length} transaction{visible.length !== 1 ? 's' : ''}
-        {(selectedInstitution || selectedAccount || amazonFilter) ? ' (filtered)' : ''}
+        {(selectedAccounts.size > 0 || amazonFilter) ? ' (filtered)' : ''}
       </div>
 
       {/* ── Group A: Suggested (review mode only) ── */}
@@ -789,7 +789,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
           <div className="empty-state-icon">📄</div>
           <div className="empty-state-title">No transactions found</div>
           <div className="empty-state-desc">
-            {selectedInstitution || selectedAccount || amazonFilter
+            {selectedAccounts.size > 0 || amazonFilter
               ? 'Try clearing the filters above'
               : reviewMode ? 'All caught up — nothing needs review'
               : 'Adjust the date range or connect an account'}
