@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { updateAccountNickname, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail, syncAmazonOrders } from '../api/client'
+import { updateAccountNickname, updateAccountShortName, deleteItem, syncItem, setAccountExcluded, getGmailStatus, getGmailConnectUrl, disconnectGmail, syncAmazonOrders } from '../api/client'
 import PlaidLinkButton from './PlaidLink'
 import PlaidReconnectButton from './PlaidReconnectButton'
 
@@ -30,6 +30,9 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editingShortName, setEditingShortName] = useState(null)
+  const [draftShortName, setDraftShortName] = useState('')
+  const [savingShortName, setSavingShortName] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [syncingItem, setSyncingItem] = useState(null)
   const [syncResults, setSyncResults] = useState({})
@@ -96,9 +99,12 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
     }
   }
 
+  const cancelEditShortName = () => { setEditingShortName(null); setDraftShortName('') }
+
   const startEdit = (acct) => {
     setEditing(acct.account_id)
     setDraft(acct.nickname || displayName(acct))
+    cancelEditShortName()
   }
 
   const cancelEdit = () => { setEditing(null); setDraft('') }
@@ -111,6 +117,17 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
       setEditing(null)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const saveShortName = async (accountId) => {
+    setSavingShortName(true)
+    try {
+      await updateAccountShortName(accountId, draftShortName.trim() || null)
+      await onRefresh()
+      setEditingShortName(null)
+    } finally {
+      setSavingShortName(false)
     }
   }
 
@@ -302,17 +319,48 @@ export default function AccountsTab({ items, onRefresh, onImportCsv, onPlaidSucc
                       </button>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: acct.nickname ? 600 : 400 }}>
-                        {displayName(acct)}
-                      </span>
-                      {acct.mask && (
-                        <span style={{ fontSize: 12, color: '#888' }}>••••{acct.mask}</span>
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 14, fontWeight: acct.nickname ? 600 : 400 }}>
+                          {displayName(acct)}
+                        </span>
+                        {acct.mask && (
+                          <span style={{ fontSize: 12, color: '#888' }}>••••{acct.mask}</span>
+                        )}
+                        {!acct.nickname && acct.official_name && acct.official_name !== acct.name && (
+                          <span style={{ fontSize: 11, color: '#aaa' }}>({acct.name})</span>
+                        )}
+                      </div>
+                      {/* Pill label row */}
+                      {editingShortName === acct.account_id ? (
+                        <div style={{ marginTop: 5, display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input
+                            value={draftShortName}
+                            onChange={(e) => setDraftShortName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveShortName(acct.account_id); if (e.key === 'Escape') cancelEditShortName() }}
+                            placeholder="Short label, e.g. Checking"
+                            maxLength={20}
+                            autoFocus
+                            style={{ padding: '3px 7px', border: '1px solid #6366f1', borderRadius: 5, fontSize: 12, width: 170 }}
+                          />
+                          <button onClick={() => saveShortName(acct.account_id)} disabled={savingShortName} style={{ padding: '3px 8px', background: '#6366f1', color: '#fff', border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Save</button>
+                          <button onClick={cancelEditShortName} style={{ padding: '3px 8px', background: '#f3f4f6', border: '1px solid #ddd', borderRadius: 5, fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 11, color: '#bbb' }}>Pill:</span>
+                          {acct.short_name
+                            ? <span style={{ fontSize: 11, background: '#e8eaf6', color: '#3730a3', padding: '1px 7px', borderRadius: 10, fontWeight: 600 }}>{acct.short_name}</span>
+                            : <span style={{ fontSize: 11, color: '#ccc' }}>—</span>
+                          }
+                          <button
+                            onClick={() => { setEditingShortName(acct.account_id); setDraftShortName(acct.short_name || ''); cancelEdit() }}
+                            style={{ fontSize: 11, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 4px' }}
+                            title="Set a short label for the filter pill"
+                          >✏</button>
+                        </div>
                       )}
-                      {!acct.nickname && acct.official_name && acct.official_name !== acct.name && (
-                        <span style={{ fontSize: 11, color: '#aaa' }}>({acct.name})</span>
-                      )}
-                    </div>
+                    </>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

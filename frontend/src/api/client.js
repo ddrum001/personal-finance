@@ -54,6 +54,16 @@ export async function updateAccountNickname(accountId, nickname) {
   return res.json()
 }
 
+export async function updateAccountShortName(accountId, shortName) {
+  const res = await fetch(`${BASE}/plaid/accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ short_name: shortName }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
+
 export async function setAccountExcluded(accountId, isExcluded) {
   const res = await fetch(`${BASE}/plaid/accounts/${accountId}`, {
     method: 'PATCH',

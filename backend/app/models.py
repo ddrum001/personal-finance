@@ -39,6 +39,7 @@ class Account(Base):
     type = Column(String, nullable=True)       # depository | credit | loan | investment
     subtype = Column(String, nullable=True)    # checking | savings | credit card | etc.
     nickname = Column(String, nullable=True)   # user-defined display name
+    short_name = Column(String, nullable=True) # short label for filter pills
     is_excluded = Column(Boolean, default=False, nullable=False)  # skip sync (e.g. joint account on second login)
     balance = Column(Float, nullable=True)
     balance_updated_at = Column(DateTime(timezone=True), nullable=True)

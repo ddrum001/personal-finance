@@ -588,6 +588,7 @@ def list_items(db: Session = Depends(get_db)):
                     "type": a.type,
                     "subtype": a.subtype,
                     "nickname": a.nickname,
+                    "short_name": a.short_name,
                     "is_excluded": a.is_excluded,
                 }
                 for a in accounts
@@ -603,10 +604,12 @@ def update_account(account_id: str, body: dict, db: Session = Depends(get_db)):
         raise HTTPException(404, f"Account {account_id!r} not found")
     if "nickname" in body:
         acct.nickname = body["nickname"] or None
+    if "short_name" in body:
+        acct.short_name = body["short_name"] or None
     if "is_excluded" in body:
         acct.is_excluded = bool(body["is_excluded"])
     db.commit()
-    return {"account_id": account_id, "nickname": acct.nickname, "is_excluded": acct.is_excluded}
+    return {"account_id": account_id, "nickname": acct.nickname, "short_name": acct.short_name, "is_excluded": acct.is_excluded}
 
 
 # ---------------------------------------------------------------------------
