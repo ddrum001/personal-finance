@@ -19,7 +19,6 @@ export default function TransactionList({ transactions, onUpdated, categories, r
     setExpandedAmazon(prev => { const n = new Set(prev); n.delete(txnId); return n })
     onUpdated?.()
   }
-  const [selectedAccounts, setSelectedAccounts] = useState(new Set())
   const [amazonFilter, setAmazonFilter] = useState(null) // null | 'linked' | 'unlinked'
   const [markingAll, setMarkingAll] = useState(false)
   // Map of id → transaction snapshot for transactions reviewed this session
@@ -166,26 +165,6 @@ export default function TransactionList({ transactions, onUpdated, categories, r
   const startEdit = (t) => { setEditing(t.transaction_id); setNewBudgetSubCategory(t.budget_sub_category || null) }
   const cancelEdit = () => { setEditing(null); setNewBudgetSubCategory(null) }
 
-  // Flat account list derived from transaction data
-  const allAccounts = useMemo(() => {
-    const seen = new Set()
-    const result = []
-    transactions.forEach((t) => {
-      if (!t.account_id || seen.has(t.account_id)) return
-      seen.add(t.account_id)
-      const inst = t.institution_name?.split(' ')[0] ?? ''
-      const label = inst + (t.account_mask ? ` ····${t.account_mask}` : (t.account_name ? ` ${t.account_name.split(' ')[0]}` : ''))
-      result.push({ account_id: t.account_id, label })
-    })
-    return result
-  }, [transactions])
-
-  const toggleAccount = (id) => setSelectedAccounts(prev => {
-    const next = new Set(prev)
-    next.has(id) ? next.delete(id) : next.add(id)
-    return next
-  })
-
   const currentIds = useMemo(() => new Set(transactions.map((t) => t.transaction_id)), [transactions])
 
   // Merge local overrides on top of server data
@@ -204,7 +183,6 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
   const visible = [
     ...withOverrides.filter((t) => {
-      if (selectedAccounts.size > 0 && !selectedAccounts.has(t.account_id)) return false
       if (amazonFilter === 'linked' && !t.amazon_order) return false
       if (amazonFilter === 'unlinked' && t.amazon_order) return false
       return true
@@ -223,62 +201,29 @@ export default function TransactionList({ transactions, onUpdated, categories, r
         />
       )}
 
-      {/* ── Account filter bar ── */}
-      {allAccounts.length > 1 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', overflowX: 'auto', gap: 6, alignItems: 'center', marginBottom: 8, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
-            <button
-              onClick={() => setSelectedAccounts(new Set())}
-              style={{
-                flexShrink: 0, padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
-                cursor: 'pointer', fontWeight: selectedAccounts.size === 0 ? 600 : 400,
-                background: selectedAccounts.size === 0 ? '#6366f1' : '#f9fafb',
-                color: selectedAccounts.size === 0 ? '#fff' : '#555',
-                borderColor: selectedAccounts.size === 0 ? '#6366f1' : '#e5e7eb',
-              }}
-            >All</button>
-            {allAccounts.map((a) => {
-              const active = selectedAccounts.has(a.account_id)
-              return (
-                <button
-                  key={a.account_id}
-                  onClick={() => toggleAccount(a.account_id)}
-                  style={{
-                    flexShrink: 0, padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
-                    cursor: 'pointer', fontWeight: active ? 600 : 400,
-                    background: active ? '#6366f1' : '#f9fafb',
-                    color: active ? '#fff' : '#555',
-                    borderColor: active ? '#6366f1' : '#e5e7eb',
-                  }}
-                >{a.label}</button>
-              )
-            })}
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Amazon:</span>
-            {[
-              { value: null, label: 'All' },
-              { value: 'linked', label: '📦 Linked' },
-              { value: 'unlinked', label: 'Not linked' },
-            ].map(({ value, label }) => (
-              <button
-                key={String(value)}
-                onClick={() => setAmazonFilter(value)}
-                style={{
-                  padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
-                  cursor: 'pointer',
-                  background: amazonFilter === value ? '#f97316' : '#f9fafb',
-                  color: amazonFilter === value ? '#fff' : '#555',
-                  borderColor: amazonFilter === value ? '#f97316' : '#e5e7eb',
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── Amazon filter bar ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: '#888', marginRight: 4 }}>Amazon:</span>
+        {[
+          { value: null, label: 'All' },
+          { value: 'linked', label: '📦 Linked' },
+          { value: 'unlinked', label: 'Not linked' },
+        ].map(({ value, label }) => (
+          <button
+            key={String(value)}
+            onClick={() => setAmazonFilter(value)}
+            style={{
+              padding: '3px 10px', border: '1px solid #e5e7eb', borderRadius: 20, fontSize: 12,
+              cursor: 'pointer',
+              background: amazonFilter === value ? '#f97316' : '#f9fafb',
+              color: amazonFilter === value ? '#fff' : '#555',
+              borderColor: amazonFilter === value ? '#f97316' : '#e5e7eb',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
 {/* Review mode banner */}
       {reviewMode && (() => {
@@ -305,7 +250,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
 
       <div style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>
         {visible.length} transaction{visible.length !== 1 ? 's' : ''}
-        {(selectedAccounts.size > 0 || amazonFilter) ? ' (filtered)' : ''}
+        {amazonFilter ? ' (filtered)' : ''}
       </div>
 
       {/* ── Group A: Suggested (review mode only) ── */}
@@ -789,7 +734,7 @@ export default function TransactionList({ transactions, onUpdated, categories, r
           <div className="empty-state-icon">📄</div>
           <div className="empty-state-title">No transactions found</div>
           <div className="empty-state-desc">
-            {selectedAccounts.size > 0 || amazonFilter
+            {amazonFilter
               ? 'Try clearing the filters above'
               : reviewMode ? 'All caught up — nothing needs review'
               : 'Adjust the date range or connect an account'}

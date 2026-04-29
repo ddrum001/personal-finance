@@ -199,7 +199,9 @@ export default function App() {
           {tab === 'transactions' && !reviewMode && !duplicatesMode && items.length > 0 && (() => {
             const accounts = items.flatMap(i => (i.accounts || []).map(a => ({
               account_id: a.account_id,
-              label: `${(a.nickname || a.name).split(' ')[0]}${a.mask ? ` ····${a.mask}` : ''}`,
+              label: a.nickname
+                ? a.nickname
+                : `${(i.institution_name || a.name).split(' ')[0]}${a.mask ? ` ····${a.mask}` : ''}`,
             })))
             if (accounts.length < 2) return null
             const toggleAccount = (id) => setAccountFilters(prev =>
