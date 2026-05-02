@@ -22,6 +22,7 @@ from ..schemas import (
     ExchangeTokenRequest,
     ExchangeTokenResponse,
     SyncResponse,
+    SyncFailure,
 )
 
 load_dotenv()
@@ -525,16 +526,34 @@ def sync_transactions(db: Session = Depends(get_db)):
     client = _plaid_client()
     manual_map = _build_manual_accts_map(db)
     total_added = total_modified = total_removed = 0
+    synced_count = 0
+    failures: list[SyncFailure] = []
 
     for item in items:
         if item.access_token == "manual":
             continue
-        a, m, r = _sync_item(item, client, manual_map, db)
-        total_added += a
-        total_modified += m
-        total_removed += r
+        try:
+            a, m, r = _sync_item(item, client, manual_map, db)
+            total_added += a
+            total_modified += m
+            total_removed += r
+            synced_count += 1
+        except Exception as e:
+            db.rollback()
+            raw = str(e.detail) if isinstance(e, HTTPException) else str(e)
+            error_msg = raw[:150] + "…" if len(raw) > 150 else raw
+            failures.append(SyncFailure(
+                institution_name=item.institution_name or item.item_id,
+                error_message=error_msg,
+            ))
 
-    return SyncResponse(added=total_added, modified=total_modified, removed=total_removed)
+    return SyncResponse(
+        added=total_added,
+        modified=total_modified,
+        removed=total_removed,
+        synced=synced_count,
+        failed=failures,
+    )
 
 
 @router.post("/items/{item_id}/sync", response_model=SyncResponse)

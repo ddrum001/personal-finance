@@ -38,6 +38,7 @@ export default function App() {
   const [items, setItems] = useState([])
   const [categories, setCategories] = useState([])
   const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
   const [filter, setFilter] = useState(DEFAULT_FILTER)
   const [importing, setImporting] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -100,9 +101,21 @@ export default function App() {
   }, [user])
   useEffect(() => { refreshCategories() }, [refreshCategories])
 
+  useEffect(() => {
+    if (!syncResult) return
+    const t = setTimeout(() => setSyncResult(null), 8000)
+    return () => clearTimeout(t)
+  }, [syncResult])
+
   const handleSync = async () => {
     setSyncing(true)
-    try { await syncTransactions() } catch {}
+    setSyncResult(null)
+    try {
+      const result = await syncTransactions()
+      setSyncResult({ ok: true, ...result })
+    } catch (e) {
+      setSyncResult({ ok: false, error: e.message })
+    }
     await loadData()
     setSyncing(false)
   }
@@ -136,6 +149,40 @@ export default function App() {
         </div>
       </header>
 
+
+      {syncResult && (() => {
+        const hasFailed = syncResult.failed?.length > 0
+        const isError = !syncResult.ok
+        const bg = isError || hasFailed ? '#fef2f2' : '#f0fdf4'
+        const border = isError || hasFailed ? '#fca5a5' : '#86efac'
+        const color = isError || hasFailed ? '#991b1b' : '#166534'
+
+        let message
+        if (isError) {
+          message = `Sync failed: ${syncResult.error}`
+        } else {
+          const parts = []
+          if (syncResult.synced > 0)
+            parts.push(`Synced ${syncResult.synced} account${syncResult.synced !== 1 ? 's' : ''}, ${syncResult.added} new transaction${syncResult.added !== 1 ? 's' : ''}`)
+          if (hasFailed)
+            parts.push(`Failed: ${syncResult.failed.map(f => `${f.institution_name} — ${f.error_message}`).join(' | ')}`)
+          message = parts.join('. ')
+        }
+
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+            background: bg, border: `1px solid ${border}`, borderRadius: 8,
+            padding: '10px 14px', marginBottom: 12, fontSize: 13, color, gap: 10,
+          }}>
+            <span>{message}</span>
+            <button onClick={() => setSyncResult(null)} style={{
+              background: 'none', border: 'none', cursor: 'pointer', color, fontSize: 16,
+              lineHeight: 1, padding: 0, flexShrink: 0,
+            }}>×</button>
+          </div>
+        )
+      })()}
 
       {(() => {
         const NAV_GROUPS = [

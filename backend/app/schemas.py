@@ -125,10 +125,17 @@ class SplitRequest(BaseModel):
     splits: list[SplitItem]
 
 
+class SyncFailure(BaseModel):
+    institution_name: str
+    error_message: str
+
+
 class SyncResponse(BaseModel):
     added: int
     modified: int
     removed: int
+    synced: int = 0
+    failed: list[SyncFailure] = []
 
 
 class CashflowEntryCreate(BaseModel):
