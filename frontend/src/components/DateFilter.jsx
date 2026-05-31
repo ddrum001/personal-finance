@@ -66,25 +66,26 @@ export default function DateFilter({ filter, onChange }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>Date range</span>
       {/* Mode pills */}
-      <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'auto', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #d1d5db', overflow: 'auto', flexWrap: 'wrap', background: '#f3f4f6' }}>
         {[
           { value: 'last30',     label: 'Last 30d'  },
           { value: 'last90',     label: 'Last 90d'  },
           { value: 'last6months',label: 'Last 6mo'  },
           { value: 'lastyear',   label: 'Last year' },
           { value: 'month',      label: 'Month'     },
-          { value: 'quarter',label: 'Quarter'  },
-          { value: 'all',    label: 'All'      },
+          { value: 'quarter',    label: 'Quarter'   },
+          { value: 'all',        label: 'All'       },
         ].map(({ value, label }) => (
           <button
             key={value}
             onClick={() => set({ mode: value })}
             style={{
               padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              background: mode === value ? '#6366f1' : '#fff',
-              color: mode === value ? '#fff' : '#555',
-              borderRight: '1px solid #e5e7eb',
+              background: mode === value ? '#6366f1' : 'transparent',
+              color: mode === value ? '#fff' : '#374151',
+              borderRight: '1px solid #d1d5db',
             }}
           >
             {label}
