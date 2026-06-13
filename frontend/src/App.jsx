@@ -40,6 +40,7 @@ export default function App() {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [filter, setFilter] = useState(DEFAULT_FILTER)
+  const [overviewFilter, setOverviewFilter] = useState(DEFAULT_FILTER)
   const [importing, setImporting] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
@@ -69,6 +70,7 @@ export default function App() {
       .catch(() => setUser(null))
 
   const { startDate, endDate } = getDateRange(filter)
+  const { startDate: overviewStartDate, endDate: overviewEndDate } = getDateRange(overviewFilter)
 
   const catParams = catFilter.length ? { budgetSubCategories: catFilter } : {}
 
@@ -230,8 +232,17 @@ export default function App() {
           {/* Row 1: date range */}
           {!reviewMode && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <DateFilter filter={filter} onChange={setFilter} />
-              <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>
+              {tab === 'overview' ? (
+                <>
+                  <DateFilter filter={overviewFilter} onChange={setOverviewFilter} />
+                  <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(overviewFilter)}</span>
+                </>
+              ) : (
+                <>
+                  <DateFilter filter={filter} onChange={setFilter} />
+                  <span style={{ fontSize: 13, color: '#888' }}>{getFilterLabel(filter)}</span>
+                </>
+              )}
             </div>
           )}
           {/* Row 2: category filter (transactions tab, normal mode only) */}
@@ -320,12 +331,12 @@ export default function App() {
         <div style={{ display: 'grid', gap: 24 }}>
           <section className="card">
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Outflows by Category</h2>
-            <SpendingByCategory startDate={startDate} endDate={endDate} />
+            <SpendingByCategory startDate={overviewStartDate} endDate={overviewEndDate} />
           </section>
 
           <section className="card">
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Monthly Activity</h2>
-            <MonthlyTrend startDate={startDate} endDate={endDate} />
+            <MonthlyTrend startDate={overviewStartDate} endDate={overviewEndDate} />
           </section>
         </div>
       )}
