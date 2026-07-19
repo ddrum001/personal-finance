@@ -62,7 +62,7 @@ def list_transactions(
     if needs_review is not None:
         q = q.filter(Transaction.needs_review == needs_review)
         if needs_review:
-            q = q.filter(Transaction.pending == False)
+            q = q.filter(Transaction.pending.isnot(True))
     txns = q.order_by(Transaction.date.desc()).offset(offset).limit(limit).all()
 
     # bulk load supporting maps

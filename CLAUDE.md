@@ -10,6 +10,11 @@
 - **To query production:** use the Neon console → SQL Editor tab.
 - **To fix production data:** run UPDATE/DELETE statements in the Neon SQL Editor, one statement at a time.
 
+## Troubleshooting: app stuck on auth screen / 502 errors
+- **Most likely cause:** stale `DATABASE_URL` in Render's environment variables. Neon passwords can change after credential resets.
+- **Fix:** Neon console → project → **Connect** (top right) → copy the new connection string → Render → service → **Environment** → update `DATABASE_URL`. Render will auto-redeploy.
+- **To verify backend is up:** `curl https://personal-finance-api-y9rd.onrender.com/health` should return `{"status": "ok"}`. An HTTP 000 or no response means Render is unreachable; a 502 from the app means the backend is up but crashing (check Render logs).
+
 ## Neon SQL console quirks
 - Run statements one at a time; multi-statement batches can behave unexpectedly
 - Avoid `SET col = (SELECT ...)` subqueries — NOT NULL constraints cause silent failures
